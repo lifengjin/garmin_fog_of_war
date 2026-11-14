@@ -161,6 +161,8 @@ export function parseKML(xml) {
     const desc = childText(inner, 'description');
     const time = parseTime(childText(inner, 'when')) ?? parseTime(childText(inner, 'begin'));
     const endTime = parseTime(childText(inner, 'end'));
+    // A placemark's style, e.g. "#icon-1899-0288D1", groups spots that share an icon.
+    const style = (childText(inner, 'styleUrl') || '').replace(/^#/, '');
 
     let found = false;
 
@@ -195,7 +197,7 @@ export function parseKML(xml) {
       for (const p of blocks(inner, 'Point')) {
         const pts = parseCoordList(childText(p.inner, 'coordinates'));
         if (pts.length >= 2) {
-          waypoints.push({ name, desc, time, sym: '', lat: pts[0], lon: pts[1] });
+          waypoints.push({ name, desc, time, sym: style, lat: pts[0], lon: pts[1] });
         }
       }
     }
@@ -282,7 +284,7 @@ export async function readZip(bytes) {
 export const SUPPORTED = /\.(gpx|kml|kmz|fit|zip)$/i;
 
 // Bump when parsing changes, so files cached from Drive are read again.
-export const PARSER_VERSION = 3;
+export const PARSER_VERSION = 4;
 
 function sniff(name, bytes) {
   const ext = (/\.([a-z0-9]+)$/i.exec(name)?.[1] || '').toLowerCase();

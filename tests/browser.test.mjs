@@ -209,6 +209,18 @@ test('browser: local files, fog, spots, filters, persistence', async (t) => {
   assert.equal(await page.evaluate(() => getComputedStyle(document.querySelector('.leaflet-tile-pane')).visibility), 'visible');
   assert.ok((await titles()).some((t) => t !== 'Spot'), 'spot names back');
 
+  // Spots are coloured by icon, and the menu lists the icons with counts.
+  const iconRows = () => page.evaluate(() => [...document.querySelectorAll('#icon-list li')].map((li) => li.innerText.replace(/\s+/g, ' ').trim()));
+  const rows = await iconRows();
+  assert.equal(rows[0], 'Flag, Green 2');
+  for (const r of ['Flag, Red 1', 'Pin, Blue 1', 'Car 1']) assert.ok(rows.includes(r), `icon row ${r} in ${rows}`);
+  const fills = await page.evaluate(() => [...new Set([...document.querySelectorAll('.spot-pin svg path:first-child')].map((p) => p.getAttribute('fill')))]);
+  for (const c of ['#2e9d48', '#d63a2a', '#2f6fd6']) assert.ok(fills.includes(c), `pin colour ${c} in ${fills}`);
+  await page.locator('#icon-list input[data-sym="Flag, Green"]').uncheck();
+  assert.equal(await page.evaluate(() => document.body.dataset.spots), '5');
+  await page.locator('#icon-list input[data-sym="Flag, Green"]').check();
+  assert.equal(await page.evaluate(() => document.body.dataset.spots), '7');
+
   // Panning and zooming keep the fog aligned with the walk.
   await page.evaluate(() => window.__fogMap.map.panBy([300, 200], { animate: false }));
   await page.waitForTimeout(150);

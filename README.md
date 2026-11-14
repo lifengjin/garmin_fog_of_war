@@ -121,6 +121,7 @@ Because the Google project stays in Testing, Google may ask you to approve again
 | Map | USGS topographic map with contours in feet (US only), OpenTopoMap with contours in metres, or a street map. Until you pick one, it follows the Units setting. |
 | Units | Miles and feet (the default), or kilometres and metres. |
 | Hide location | For screenshots: hides the base map and spot names, spot coordinates and the scale bar, so the picture shows the fog and walks but not where they are. Tap **Location hidden · Show** to turn it off. The shape of a trail could still be matched to a map by someone who tried hard. |
+| Spot icons | Each spot's pin is coloured by its Garmin icon (the GPX `<sym>`, or the KML style). Icons named after a colour, like "Flag, Blue", keep that colour. The list shows how many spots use each icon; untick one to hide those spots. |
 | Show spots / walk lines | Toggle the pins, and thin lines along the exact walks. |
 | Only show spots matching | Show only spots whose name or note contains a word, e.g. "chanterelle". |
 

@@ -103,16 +103,16 @@ ${kmlTrack.map(([la, lo]) => `      <gx:coord>${lo.toFixed(7)} ${la.toFixed(7)} 
 `;
 
 const spots = gpx([
-  ['Sample spot: chanterelle patch', 'Made-up spot. Under Douglas fir & hemlock, Oct.', 0.0042, -0.0048, Date.UTC(2023, 9, 7, 18)],
-  ['Sample spot: lobster mushrooms', 'Made-up spot. Near the second switchback.', -0.0021, -0.0030, Date.UTC(2023, 9, 21, 17)],
-  ['Sample spot: hedgehogs', 'Made-up spot. Mossy bank <north side>.', 0.0010, 0.0045, Date.UTC(2024, 8, 29, 18)],
-  ['Sample spot: king bolete', 'Made-up spot. One big one, 2024.', -0.0075, 0.0050, Date.UTC(2024, 9, 12, 20)],
-  ['Sample spot: car', 'Made-up trailhead parking.', -0.0005, 0.0010, Date.UTC(2023, 9, 7, 16)],
-].map(([name, desc, dlat, dlon, t]) => `  <wpt lat="${(CENTER[0] + dlat).toFixed(6)}" lon="${(CENTER[1] + dlon).toFixed(6)}">
+  ['Sample spot: chanterelle patch', 'Made-up spot. Under Douglas fir & hemlock, Oct.', 0.0042, -0.0048, Date.UTC(2023, 9, 7, 18), 'Flag, Green'],
+  ['Sample spot: lobster mushrooms', 'Made-up spot. Near the second switchback.', -0.0021, -0.0030, Date.UTC(2023, 9, 21, 17), 'Flag, Red'],
+  ['Sample spot: hedgehogs', 'Made-up spot. Mossy bank <north side>.', 0.0010, 0.0045, Date.UTC(2024, 8, 29, 18), 'Flag, Green'],
+  ['Sample spot: king bolete', 'Made-up spot. One big one, 2024.', -0.0075, 0.0050, Date.UTC(2024, 9, 12, 20), 'Pin, Blue'],
+  ['Sample spot: car', 'Made-up trailhead parking.', -0.0005, 0.0010, Date.UTC(2023, 9, 7, 16), 'Car'],
+].map(([name, desc, dlat, dlon, t, sym]) => `  <wpt lat="${(CENTER[0] + dlat).toFixed(6)}" lon="${(CENTER[1] + dlon).toFixed(6)}">
     <time>${iso(t)}</time>
     <name>${name.replace(/&/g, '&amp;')}</name>
     <desc>${desc.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')}</desc>
-    <sym>Flag, Green</sym>
+    <sym>${sym}</sym>
   </wpt>`).join('\n'));
 
 fs.writeFileSync(path.join(out, 'walks-2023.gpx'), w2023);
