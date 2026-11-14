@@ -1,0 +1,190 @@
+// Unit tests for parsing and geometry. Run with: node --test tests/
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+import { parseGPX, parseKML, parseFile, decodeText } from '../js/parse.js';
+import { simplify, simplifyLatLon, splitOnGaps, haversine, toUV, metresToUV } from '../js/geo.js';
+import { prepare, combine, filterByYears, stats, years } from '../js/data.js';
+import { makeZip } from '../tools/zip.mjs';
+
+const root = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
+const sample = (f) => fs.readFileSync(path.join(root, 'samples', f));
+
+test('decodeText handles entities and CDATA', () => {
+  assert.equal(decodeText('Fir &amp; hemlock &lt;N&gt; &#233;&#x41;'), 'Fir & hemlock <N> éA');
+  assert.equal(decodeText('<![CDATA[a & <b>]]> &amp; c'), 'a & <b> & c');
+});
+
+test('GPX: tracks, segments, times, waypoints; routes ignored', () => {
+  const xml = `<?xml version="1.0"?>
+  <gpx:gpx xmlns:gpx="http://www.topografix.com/GPX/1/1">
+    <gpx:wpt lat='47.1' lon="-122.2"><gpx:name>Spot &amp; more</gpx:name><gpx:desc><![CDATA[<b>not html</b>]]></gpx:desc><gpx:time>2024-10-01T10:00:00Z</gpx:time></gpx:wpt>
+    <gpx:wpt lat="999" lon="0"><gpx:name>bad</gpx:name></gpx:wpt>
+    <gpx:rte><gpx:rtept lat="47" lon="-122"/><gpx:rtept lat="47.1" lon="-122"/></gpx:rte>
+    <gpx:trk><gpx:name>Walk A</gpx:name>
+      <gpx:trkseg>
+        <gpx:trkpt lat="47.0" lon="-122.0"><gpx:time>2024-10-01T09:00:00Z</gpx:time></gpx:trkpt>
+        <gpx:trkpt lat="47.001" lon="-122.0"/>
+        <gpx:trkpt lat="abc" lon="-122.0"/>
+      </gpx:trkseg>
+      <gpx:trkseg>
+        <gpx:trkpt lat="47.002" lon="-122.0"></gpx:trkpt>
+        <gpx:trkpt lat="47.003" lon="-122.0"><gpx:time>2024-10-01T09:30:00Z</gpx:time></gpx:trkpt>
+      </gpx:trkseg>
+    </gpx:trk>
+  </gpx:gpx>`;
+  const { tracks, waypoints } = parseGPX(xml);
+  assert.equal(tracks.length, 1);
+  assert.equal(tracks[0].name, 'Walk A');
+  assert.equal(tracks[0].segments.length, 2);
+  assert.deepEqual([...tracks[0].segments[0]], [47.0, -122.0, 47.001, -122.0]);
+  assert.equal(tracks[0].time, Date.parse('2024-10-01T09:00:00Z'));
+  assert.equal(tracks[0].endTime, Date.parse('2024-10-01T09:30:00Z'));
+  assert.equal(waypoints.length, 1);
+  assert.equal(waypoints[0].name, 'Spot & more');
+  assert.equal(waypoints[0].desc, '<b>not html</b>');
+});
+
+test('KML: LineString, gx:Track, MultiGeometry and Points', () => {
+  const xml = `<kml xmlns:gx="http://www.google.com/kml/ext/2.2"><Document>
+    <Placemark><name>Line</name><TimeStamp><when>2023-09-01T00:00:00Z</when></TimeStamp>
+      <LineString><coordinates>-122,47,0 -122.001,47.001,0
+        -122.002,47.002</coordinates></LineString></Placemark>
+    <Placemark><name>Multi</name><MultiGeometry>
+      <LineString><coordinates>-121,46 -121.001,46.001</coordinates></LineString>
+      <LineString><coordinates>-121.01,46.01 -121.011,46.011</coordinates></LineString>
+    </MultiGeometry></Placemark>
+    <Placemark><name>Tracked</name><gx:Track>
+      <when>2025-01-02T03:04:05Z</when><when>2025-01-02T03:04:08Z</when>
+      <gx:coord>-120 45 10</gx:coord><gx:coord>-120.001 45.001 10</gx:coord>
+    </gx:Track></Placemark>
+    <Placemark><name>Pin</name><description>note</description><ExtendedData><Data name="x"><value>1</value></Data></ExtendedData>
+      <Point><coordinates>-119.5,44.5,0</coordinates></Point></Placemark>
+  </Document></kml>`;
+  const { tracks, waypoints } = parseKML(xml);
+  assert.deepEqual(tracks.map((t) => t.name), ['Line', 'Multi', 'Multi', 'Tracked']);
+  assert.deepEqual([...tracks[0].segments[0]], [47, -122, 47.001, -122.001, 47.002, -122.002]);
+  assert.equal(tracks[0].time, Date.parse('2023-09-01T00:00:00Z'));
+  assert.equal(tracks[3].time, Date.parse('2025-01-02T03:04:05Z'));
+  assert.deepEqual(waypoints, [{ name: 'Pin', desc: 'note', time: null, sym: '', lat: 44.5, lon: -119.5 }]);
+});
+
+test('ZIP and KMZ, nested, stored and deflated; junk skipped', async () => {
+  const gpx = '<gpx><trk><trkseg><trkpt lat="1" lon="2"/><trkpt lat="1.001" lon="2"/></trkseg></trk></gpx>';
+  const kml = '<kml><Placemark><name>P</name><Point><coordinates>3,4</coordinates></Point></Placemark></kml>';
+  const kmz = makeZip([{ name: 'doc.kml', data: kml }]);
+  const zip = makeZip([
+    { name: 'a/track.gpx', data: gpx },
+    { name: 'a/places.kmz', data: kmz, store: true },
+    { name: '__MACOSX/a/._track.gpx', data: 'junk' },
+    { name: 'notes.txt', data: 'hello' },
+  ]);
+  const r = await parseFile('export.zip', zip);
+  assert.equal(r.tracks.length, 1);
+  assert.equal(r.waypoints.length, 1);
+  assert.equal(r.waypoints[0].lat, 4);
+  assert.deepEqual(r.parts, ['export.zip › a/track.gpx', 'export.zip › a/places.kmz › doc.kml']);
+  // A file with the wrong extension is still recognized by its content.
+  assert.equal((await parseFile('Track.xml', Buffer.from(gpx))).tracks.length, 1);
+});
+
+test('simplify keeps shape within tolerance and drops collinear points', () => {
+  const line = [];
+  for (let i = 0; i <= 100; i++) line.push(i, 0);
+  assert.deepEqual([...simplify(Float64Array.from(line), 0.1)], [0, 0, 100, 0]);
+
+  const zig = Float64Array.from([0, 0, 1, 0.05, 2, 0, 3, 5, 4, 0]);
+  const s = simplify(zig, 0.5);
+  assert.deepEqual([...s], [0, 0, 2, 0, 3, 5, 4, 0]);
+});
+
+test('simplifyLatLon stays within ~2 m of the original', () => {
+  const pts = [];
+  let lat = 45, lon = -121;
+  for (let i = 0; i < 2000; i++) {
+    lat += 2.5e-5 * Math.cos(i / 40);
+    lon += 3e-5 * Math.sin(i / 55);
+    pts.push(lat, lon);
+  }
+  const s = simplifyLatLon(Float64Array.from(pts), 2);
+  assert.ok(s.length < pts.length / 3, `expected a big reduction, got ${s.length / 2} of ${pts.length / 2}`);
+  // every original point is within 2.5 m of some kept point segment (cheap check: of a kept vertex or segment)
+  let worst = 0;
+  for (let i = 0; i < pts.length; i += 2) {
+    let best = Infinity;
+    for (let j = 2; j < s.length; j += 2) {
+      // distance to segment in a local flat frame
+      const ky = 111320, kx = 111320 * Math.cos((45 * Math.PI) / 180);
+      const ax = s[j - 1] * kx, ay = s[j - 2] * ky, bx = s[j + 1] * kx, by = s[j] * ky;
+      const px = pts[i + 1] * kx, py = pts[i] * ky;
+      const dx = bx - ax, dy = by - ay;
+      const t = Math.max(0, Math.min(1, ((px - ax) * dx + (py - ay) * dy) / (dx * dx + dy * dy || 1)));
+      best = Math.min(best, Math.hypot(px - ax - t * dx, py - ay - t * dy));
+    }
+    worst = Math.max(worst, best);
+  }
+  assert.ok(worst <= 2.5, `worst deviation ${worst.toFixed(2)} m`);
+});
+
+test('splitOnGaps cuts GPS jumps over 500 m', () => {
+  const pts = Float64Array.from([45, -121, 45.0001, -121, 45.0002, -121, 45.1, -121, 45.1001, -121]);
+  const parts = splitOnGaps(pts);
+  assert.equal(parts.length, 2);
+  assert.equal(parts[0].length, 6);
+  assert.equal(parts[1].length, 4);
+});
+
+test('geometry: haversine, Web Mercator and metre scale', () => {
+  assert.ok(Math.abs(haversine(45, -121, 45.001, -121) - 111.2) < 0.5);
+  assert.deepEqual(toUV(0, 0), [0.5, 0.5]);
+  const [u] = toUV(0, 180);
+  assert.equal(u, 1);
+  // 30 m at 45° is wider in Mercator than at the equator
+  assert.ok(metresToUV(30, 45) > metresToUV(30, 0) * 1.4);
+});
+
+test('sample files: counts, de-duplication and year filter', async () => {
+  const names = ['walks-2023.gpx', 'walks-2024.gpx', 'walks-2025.kml', 'spots.gpx', 'export-sample.zip'];
+  const files = [];
+  for (const n of names) files.push({ id: n, ...prepare(await parseFile(n, sample(n))) });
+
+  const counts = Object.fromEntries(files.map((f) => [f.id, new Set(f.tracks.map((t) => t.key)).size]));
+  assert.deepEqual(counts, { 'walks-2023.gpx': 3, 'walks-2024.gpx': 3, 'walks-2025.kml': 2, 'spots.gpx': 0, 'export-sample.zip': 5 });
+
+  const all = combine(files);
+  const s = stats(all.tracks, all.waypoints);
+  assert.equal(s.walks, 8, 'the ZIP repeats 2024 and 2025 walks, which count once');
+  assert.equal(s.spots, 7);
+  assert.ok(s.km > 15 && s.km < 60, `km ${s.km}`);
+  assert.deepEqual(years(all.tracks), [2023, 2024, 2025]);
+  assert.equal(new Set(filterByYears(all.tracks, 2024, 2024).map((t) => t.key)).size, 3);
+  assert.equal(new Set(filterByYears(all.tracks, 2024, null).map((t) => t.key)).size, 5);
+});
+
+test('large file: 300,000 points parse and simplify quickly', async () => {
+  let xml = '<gpx>';
+  let lat = 46, lon = -121;
+  for (let trk = 0; trk < 60; trk++) {
+    xml += `<trk><name>t${trk}</name><trkseg>`;
+    for (let i = 0; i < 5000; i++) {
+      lat += 2e-5 * Math.cos(i / 30 + trk);
+      lon += 2e-5 * Math.sin(i / 45 + trk);
+      xml += `<trkpt lat="${lat.toFixed(7)}" lon="${lon.toFixed(7)}"><ele>500.0</ele><time>2022-10-01T10:00:00Z</time></trkpt>\n`;
+    }
+    xml += '</trkseg></trk>';
+  }
+  xml += '</gpx>';
+  const t0 = performance.now();
+  const parsed = await parseFile('big.gpx', Buffer.from(xml));
+  const t1 = performance.now();
+  const prepared = prepare(parsed);
+  const t2 = performance.now();
+  const before = parsed.tracks.reduce((a, t) => a + t.segments[0].length / 2, 0);
+  const after = prepared.tracks.reduce((a, t) => a + t.points.length / 2, 0);
+  assert.equal(before, 300000);
+  console.log(`  ${(xml.length / 1e6).toFixed(1)} MB: parse ${(t1 - t0).toFixed(0)} ms, simplify ${(t2 - t1).toFixed(0)} ms, ${before} -> ${after} points`);
+  assert.ok(t2 - t0 < 10000);
+});

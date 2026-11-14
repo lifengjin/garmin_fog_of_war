@@ -1,0 +1,12 @@
+# Never commit personal location data. Only the made-up samples are tracked.
+*.gpx
+*.kml
+*.kmz
+*.zip
+*.fit
+!samples/*
+data/
+private/
+
+node_modules/
+.DS_Store

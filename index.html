@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Foraging Fog Map</title>
+  <meta name="description" content="A fog-of-war map of where you've walked, with your foraging spots on top.">
+  <meta name="theme-color" content="#121a16">
+  <meta http-equiv="Content-Security-Policy" content="
+    default-src 'self';
+    script-src 'self' https://accounts.google.com/gsi/client;
+    style-src 'self' 'unsafe-inline' https://accounts.google.com/gsi/style;
+    img-src 'self' data: blob: https://tile.openstreetmap.org https://*.tile.opentopomap.org;
+    connect-src 'self' https://www.googleapis.com https://accounts.google.com/gsi/;
+    frame-src https://accounts.google.com/gsi/;
+    worker-src 'self';
+    manifest-src 'self';
+    base-uri 'self';
+    form-action 'none'">
+  <meta name="referrer" content="strict-origin-when-cross-origin">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <link rel="stylesheet" href="vendor/leaflet/leaflet.css">
+  <link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+  <div id="map" aria-label="Map"></div>
+
+  <div class="fab-stack" role="toolbar" aria-label="Map tools">
+    <button id="btn-menu" class="fab" type="button" aria-label="Open menu" aria-controls="panel" aria-expanded="false">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+    </button>
+    <button id="btn-sync" class="fab" type="button" aria-label="Sync from Google Drive" hidden>
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11a8 8 0 0 0-14.3-4.9L4 8M4 4v4h4M4 13a8 8 0 0 0 14.3 4.9L20 16m0 4v-4h-4"/></svg>
+    </button>
+    <button id="btn-locate" class="fab" type="button" aria-label="Show my location" aria-pressed="false">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3.5"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/><circle cx="12" cy="12" r="7.5"/></svg>
+    </button>
+  </div>
+
+  <aside id="panel" class="panel" aria-label="Menu" hidden>
+    <header class="panel-head">
+      <h1>Foraging Fog Map</h1>
+      <button id="btn-close" class="icon-btn" type="button" aria-label="Close menu">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
+      </button>
+    </header>
+
+    <section class="stats" aria-live="polite">
+      <div><span id="stat-walks">0</span><small>walks</small></div>
+      <div><span id="stat-km">0</span><small>km walked</small></div>
+      <div><span id="stat-spots">0</span><small>spots</small></div>
+    </section>
+    <p id="stat-range" class="muted"></p>
+
+    <section>
+      <h2>Your data</h2>
+      <div class="row">
+        <label class="btn primary" for="file-input">Add files</label>
+        <input id="file-input" type="file" multiple accept=".gpx,.kml,.kmz,.zip,application/gpx+xml,application/vnd.google-earth.kml+xml,application/vnd.google-earth.kmz,application/zip" hidden>
+        <button id="btn-drive" class="btn" type="button">Sync Google Drive</button>
+      </div>
+      <p class="muted">GPX, KML, KMZ, or a ZIP such as your Garmin data export. You can also drop files onto the map.</p>
+      <p id="drive-status" class="muted"></p>
+    </section>
+
+    <section>
+      <h2>Display</h2>
+      <label class="field">
+        <span>Cleared strip width <output id="out-width">30 m</output></span>
+        <input id="in-width" type="range" min="5" max="150" step="5" value="30">
+      </label>
+      <label class="field">
+        <span>Fog darkness <output id="out-fog">78%</output></span>
+        <input id="in-fog" type="range" min="20" max="95" step="1" value="78">
+      </label>
+      <div class="row two">
+        <label class="field">
+          <span>Walks from</span>
+          <select id="in-from"><option value="">All years</option></select>
+        </label>
+        <label class="field">
+          <span>to</span>
+          <select id="in-to"><option value="">All years</option></select>
+        </label>
+      </div>
+      <label class="field">
+        <span>Map</span>
+        <select id="in-base">
+          <option value="topo">Topographic (OpenTopoMap)</option>
+          <option value="osm">Streets (OpenStreetMap)</option>
+        </select>
+      </label>
+      <label class="check"><input id="in-spots" type="checkbox" checked> Show spots</label>
+      <label class="check"><input id="in-lines" type="checkbox"> Show walk lines</label>
+      <label class="field">
+        <span>Only show spots matching</span>
+        <input id="in-filter" type="search" placeholder="e.g. chanterelle" autocomplete="off">
+      </label>
+    </section>
+
+    <details>
+      <summary>Settings</summary>
+      <label class="field">
+        <span>Google Drive folder (link or name)</span>
+        <input id="in-folder" type="text" autocomplete="off" spellcheck="false">
+      </label>
+      <label class="field">
+        <span>Google client ID (only if not set in js/config.js)</span>
+        <input id="in-client" type="text" autocomplete="off" spellcheck="false" placeholder="….apps.googleusercontent.com">
+      </label>
+      <div class="row">
+        <button id="btn-signout" class="btn" type="button">Sign out of Google</button>
+        <button id="btn-clear" class="btn danger" type="button">Remove all data from this device</button>
+      </div>
+      <p class="muted">Your tracks and spots stay on this device and in your own Drive. This site never uploads them anywhere.</p>
+    </details>
+
+    <ul id="file-list" class="file-list" aria-label="Loaded files"></ul>
+  </aside>
+
+  <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+  <div id="drop" class="drop" hidden><p>Drop GPX, KML, KMZ or ZIP files</p></div>
+
+  <script src="vendor/leaflet/leaflet.js"></script>
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>

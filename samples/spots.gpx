@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<gpx version="1.1" creator="foraging-fog-map sample generator" xmlns="http://www.topografix.com/GPX/1/1">
+  <metadata><name>Made-up sample data</name></metadata>
+  <wpt lat="45.304200" lon="-121.804800">
+    <time>2023-10-07T18:00:00Z</time>
+    <name>Sample spot: chanterelle patch</name>
+    <desc>Made-up spot. Under Douglas fir &amp; hemlock, Oct.</desc>
+    <sym>Flag, Green</sym>
+  </wpt>
+  <wpt lat="45.297900" lon="-121.803000">
+    <time>2023-10-21T17:00:00Z</time>
+    <name>Sample spot: lobster mushrooms</name>
+    <desc>Made-up spot. Near the second switchback.</desc>
+    <sym>Flag, Green</sym>
+  </wpt>
+  <wpt lat="45.301000" lon="-121.795500">
+    <time>2024-09-29T18:00:00Z</time>
+    <name>Sample spot: hedgehogs</name>
+    <desc>Made-up spot. Mossy bank &lt;north side&gt;.</desc>
+    <sym>Flag, Green</sym>
+  </wpt>
+  <wpt lat="45.292500" lon="-121.795000">
+    <time>2024-10-12T20:00:00Z</time>
+    <name>Sample spot: king bolete</name>
+    <desc>Made-up spot. One big one, 2024.</desc>
+    <sym>Flag, Green</sym>
+  </wpt>
+  <wpt lat="45.299500" lon="-121.799000">
+    <time>2023-10-07T16:00:00Z</time>
+    <name>Sample spot: car</name>
+    <desc>Made-up trailhead parking.</desc>
+    <sym>Flag, Green</sym>
+  </wpt>
+</gpx>
