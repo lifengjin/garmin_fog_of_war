@@ -60,10 +60,10 @@
       <h2>Your data</h2>
       <div class="row">
         <label class="btn primary" for="file-input">Add files</label>
-        <input id="file-input" type="file" multiple accept=".gpx,.kml,.kmz,.zip,application/gpx+xml,application/vnd.google-earth.kml+xml,application/vnd.google-earth.kmz,application/zip" hidden>
+        <input id="file-input" type="file" multiple accept=".gpx,.kml,.kmz,.fit,.zip,application/gpx+xml,application/vnd.google-earth.kml+xml,application/vnd.google-earth.kmz,application/zip" hidden>
         <button id="btn-drive" class="btn" type="button">Sync Google Drive</button>
       </div>
-      <p class="muted">GPX, KML, KMZ, or a ZIP such as your Garmin data export. You can also drop files onto the map.</p>
+      <p class="muted">GPX, KML, KMZ, FIT, or a ZIP such as your Garmin data export. You can also drop files onto the map.</p>
       <p id="drive-status" class="muted"></p>
     </section>
 
@@ -123,7 +123,7 @@
   </aside>
 
   <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
-  <div id="drop" class="drop" hidden><p>Drop GPX, KML, KMZ or ZIP files</p></div>
+  <div id="drop" class="drop" hidden><p>Drop GPX, KML, KMZ, FIT or ZIP files</p></div>
 
   <script src="vendor/leaflet/leaflet.js"></script>
   <script type="module" src="js/app.js"></script>

@@ -318,3 +318,17 @@ test('browser: works offline after the first visit (service worker)', async (t) 
   // Tile requests fail while offline; anything else would be an app error.
   assert.deepEqual(errors.filter((e) => !/ERR_INTERNET_DISCONNECTED|Failed to load resource/.test(e)), []);
 });
+
+test('browser: Garmin FIT files and a Garmin-style export ZIP', async (t) => {
+  const server = await serve();
+  const base = `http://127.0.0.1:${server.address().port}/`;
+  const browser = await launch();
+  t.after(async () => { await browser.close(); server.close(); });
+  const { page, errors } = await newPage(browser, base);
+  // The export repeats the hike and holds a ride and a course, which are skipped.
+  await page.setInputFiles('#file-input', ['hike-2025.fit', 'garmin-export-sample.zip'].map((f) => path.join(samples, f)));
+  await waitFor(page, () => document.body.dataset.walks === '2');
+  const info = await fogInfo(page);
+  assert.ok(info.clearShare > 0.001, `fog cleared along the FIT walks (${info.clearShare})`);
+  assert.deepEqual(errors, []);
+});

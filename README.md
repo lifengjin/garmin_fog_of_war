@@ -10,7 +10,7 @@ A map that is covered in fog everywhere except where you've walked. Every GPS tr
 *(Screenshots use the made-up sample data in `samples/` and a plain placeholder in place of map tiles.)*
 
 - Works in any modern browser, on a phone in the field or on a computer.
-- Reads GPX, KML, KMZ and ZIP files, including Garmin Explore exports and Garmin's full account data export.
+- Reads GPX, KML, KMZ, FIT and ZIP files, including Garmin Connect activities, Garmin Explore exports and Garmin's full account data export.
 - Your data stays private. It lives in your own Google Drive folder (or on your device) and is never put in this repository or sent anywhere else.
 - Free to host on GitHub Pages. There is no server and no database.
 
@@ -21,7 +21,7 @@ This repository holds only the app's code. Your tracks and spots never go in it.
 - **Google Drive:** the app signs in to Google from your browser with read-only access and downloads the files from the one folder you choose. Nobody else, including whoever hosts the site, can see them.
 - **On your device:** the app keeps a copy of what it has read in your browser's storage, so the map opens instantly and works without signal. **Settings → Remove all data from this device** deletes it.
 - **Adding files directly:** files you pick or drop on the map are read in the browser and never uploaded.
-- The `.gitignore` blocks GPX, KML, KMZ, ZIP and FIT files, so they can't be committed by accident. Only the made-up files in `samples/` are tracked.
+- The `.gitignore` blocks GPX, KML, KMZ, FIT and ZIP files, so they can't be committed by accident. Only the made-up files in `samples/` are tracked.
 
 The Google client ID in `js/config.js` is not a secret. It only works on the web addresses you allow for it.
 
@@ -37,9 +37,13 @@ The fog clears along made-up walks in a forest, and the made-up spots appear.
 
 Any of these works. Put the files in your Drive folder, or add them directly.
 
-- **Garmin Explore app (best for single trips):** open **Saved**, pick an activity, track or collection, then **Share → GPX** and save it to your Drive folder.
-- **Garmin account data export (everything at once):** sign in at garmin.com, open **Account → Data Management → Export Your Data**, and request an export. Garmin emails you a link to a ZIP file. Put the whole ZIP in your Drive folder; the app finds the GPX, KML and KMZ files inside it.
-- **Explore website:** **Map → Export** gives you KML or GPX, but Garmin refuses tracks with more than 500 points, which most walks have. Use one of the two options above instead.
+- **Garmin account data export (everything at once, best for years of hikes):** sign in at garmin.com, open **Account → Data Management → Export Your Data**, and request an export. Garmin emails you a link to a ZIP file, which can take a few days. Put the whole ZIP in your Drive folder; the app finds the activity files inside it. Garmin Connect activities are in the export as FIT files, in zips under `DI_CONNECT/DI-Connect-Uploaded-Files`.
+  - If the export is very large (more than a few hundred MB), a phone may run out of memory reading it. Unzip it on a computer and put only the zips from `DI_CONNECT/DI-Connect-Uploaded-Files` in your Drive folder.
+- **A single Garmin Connect activity:** open it on connect.garmin.com, click the gear icon and choose **Export Original** (a ZIP with the FIT file) or **Export to GPX**.
+- **Garmin Explore app:** open **Saved**, pick an activity, track or collection, then **Share → GPX** and save it to your Drive folder.
+- **Explore website:** **Map → Export** gives you KML or GPX, but Garmin refuses tracks with more than 500 points, which most walks have. Use one of the options above instead.
+
+Only activities done on foot clear fog: hikes, walks, runs, mountaineering, hunting, fishing, snowshoeing, and activities with no sport set. Rides, drives, paddling, skiing and other sports in your Garmin data are skipped, so they don't clear fog along roads and rivers. Planned courses are skipped too.
 
 Tracks that appear in several files (for example in a single-trip GPX and again in the full export) are counted once.
 
@@ -120,7 +124,7 @@ Because the Google project stays in Testing, Google may ask you to approve again
 
 - **Routes are ignored.** Planned routes (GPX `<rte>`) don't clear fog, only recorded tracks. KML files don't say which lines are planned and which were walked, so all KML lines count as walks.
 - **GPS jumps are skipped.** If two consecutive points are more than 500 m apart (the device was off, or lost signal), the strip isn't drawn across the gap.
-- **FIT files** (Garmin's activity format) aren't read. Export GPX from the Explore app instead, or convert FIT to GPX with a tool such as GPSBabel.
+- **Pauses aren't bridged.** When you pause the watch and resume somewhere else, the strip isn't drawn between the two places.
 - **Map tiles** come from OpenStreetMap and OpenTopoMap, which are free community services. Please keep usage personal and light.
 
 ## Run it on your computer
@@ -136,6 +140,7 @@ then open http://localhost:8000. (Opening `index.html` directly from the disk do
 ## Development
 
 - `js/parse.js`: GPX, KML, KMZ and ZIP reading (no dependencies; runs in browsers and Node).
+- `js/fit.js`: Garmin FIT activity reading (GPS records, pauses, sport).
 - `js/geo.js`, `js/data.js`: simplification, gap splitting, de-duplication and stats.
 - `js/fog.js`: the fog layer, a Leaflet canvas that's filled with fog and then has each walk erased from it. Tracks are pre-projected and simplified per zoom level, so years of walks stay smooth.
 - `js/drive.js`: Google sign-in (token kept in memory only) and Drive folder reading.
@@ -152,7 +157,7 @@ npx playwright install chromium
 npm run test:browser             # the whole app in headless Chromium, including a Drive sync against a fake Google
 ```
 
-`npm run samples` regenerates the made-up sample files.
+`npm run samples` regenerates the made-up sample files, including the FIT files (written by `tools/fit.mjs`).
 
 ## Credits and licenses
 

@@ -1,4 +1,4 @@
-// Parsing for GPX, KML, KMZ and ZIP files.
+// Parsing for GPX, KML, KMZ, FIT and ZIP files.
 //
 // This module has no DOM dependency so it runs in the browser and in Node
 // (for tests). It turns a file into:
@@ -7,6 +7,8 @@
 //
 // Routes (planned paths, GPX <rte>) are ignored on purpose: the fog should
 // only clear where you actually walked.
+
+import { parseFIT, isFIT } from './fit.js';
 
 const TEXT = new TextDecoder('utf-8');
 
@@ -277,11 +279,15 @@ export async function readZip(bytes) {
 
 // ---------------------------------------------------------------- dispatch
 
-export const SUPPORTED = /\.(gpx|kml|kmz|zip)$/i;
+export const SUPPORTED = /\.(gpx|kml|kmz|fit|zip)$/i;
+
+// Bump when parsing changes, so files cached from Drive are read again.
+export const PARSER_VERSION = 2;
 
 function sniff(name, bytes) {
   const ext = (/\.([a-z0-9]+)$/i.exec(name)?.[1] || '').toLowerCase();
   if (bytes[0] === 0x50 && bytes[1] === 0x4b) return ext === 'kmz' ? 'kmz' : 'zip';
+  if (isFIT(bytes)) return 'fit';
   if (ext === 'gpx' || ext === 'kml') return ext;
   const head = TEXT.decode(bytes.subarray(0, 2048));
   if (/<gpx\b/i.test(head)) return 'gpx';
@@ -290,12 +296,13 @@ function sniff(name, bytes) {
 }
 
 // Parse any supported file. Returns { tracks, waypoints, parts: [names] }.
-// ZIPs (e.g. a Garmin account export) are searched for GPX/KML/KMZ inside.
+// ZIPs (e.g. a Garmin account export) are searched for GPX/KML/KMZ/FIT inside.
 export async function parseFile(name, input, depth = 0) {
   const bytes = input instanceof Uint8Array ? input : new Uint8Array(input);
   const kind = sniff(name, bytes);
   if (kind === 'gpx') return { ...parseGPX(TEXT.decode(bytes)), parts: [name] };
   if (kind === 'kml') return { ...parseKML(TEXT.decode(bytes)), parts: [name] };
+  if (kind === 'fit') return { ...parseFIT(bytes), parts: [name] };
   if ((kind === 'zip' || kind === 'kmz') && depth < 3) {
     const zip = await readZip(bytes);
     const result = { tracks: [], waypoints: [], parts: [] };

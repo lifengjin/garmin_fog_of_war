@@ -9,6 +9,8 @@ import { parseGPX, parseKML, parseFile, decodeText } from '../js/parse.js';
 import { simplify, simplifyLatLon, splitOnGaps, haversine, toUV, metresToUV } from '../js/geo.js';
 import { prepare, combine, filterByYears, stats, years } from '../js/data.js';
 import { makeZip } from '../tools/zip.mjs';
+import { makeFit } from '../tools/fit.mjs';
+import { parseFIT } from '../js/fit.js';
 
 const root = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const sample = (f) => fs.readFileSync(path.join(root, 'samples', f));
@@ -91,6 +93,39 @@ test('ZIP and KMZ, nested, stored and deflated; junk skipped', async () => {
   assert.equal((await parseFile('Track.xml', Buffer.from(gpx))).tracks.length, 1);
 });
 
+test('FIT: GPS records, pauses, compressed timestamps, sport filter', async () => {
+  const line = (lat0, n) => Array.from({ length: n }, (_, i) => [lat0 + i * 1e-4, -122 + i * 5e-5]);
+  const start = Date.UTC(2024, 9, 1, 16) / 1000;
+
+  // A hike with a pause: two segments, big-endian records with a developer
+  // field, and every third point using a compressed timestamp header.
+  const hike = makeFit({ sport: 17, sportName: 'Hike', segments: [line(47, 40), line(47.01, 30)], startS: start, compressEvery: 3 });
+  const { tracks } = parseFIT(hike);
+  assert.equal(tracks.length, 1);
+  const t = tracks[0];
+  assert.equal(t.name, 'Hike');
+  assert.equal(t.sport, 17);
+  assert.deepEqual(t.segments.map((s) => s.length / 2), [40, 30]);
+  assert.ok(Math.abs(t.segments[0][0] - 47) < 1e-6 && Math.abs(t.segments[0][1] + 122) < 1e-6);
+  assert.equal(t.time, (start + 3) * 1000);
+  assert.equal(t.endTime, (start + 70 * 3 + 600) * 1000, 'compressed timestamps roll over correctly');
+
+  // Not on foot, or not a recorded activity: skipped.
+  assert.equal(parseFIT(makeFit({ sport: 2, segments: [line(47, 20)], startS: start })).tracks.length, 0, 'bike ride');
+  assert.equal(parseFIT(makeFit({ fileType: 6, segments: [line(47, 20)], startS: start })).tracks.length, 0, 'course');
+  assert.equal(parseFIT(makeFit({ sport: 11, segments: [line(47, 20)], startS: start })).tracks[0].name, 'Walk');
+
+  // Found by content and by extension, inside zips; truncated files keep what's there.
+  assert.equal((await parseFile('activity.bin', hike)).tracks.length, 1);
+  const zipped = makeZip([{ name: 'a/b/123.fit', data: Buffer.from(hike) }]);
+  assert.equal((await parseFile('export.zip', zipped)).tracks.length, 1);
+  const cut = parseFIT(hike.subarray(0, Math.floor(hike.length * 0.4)));
+  assert.equal(cut.tracks.length, 1);
+  assert.ok(cut.tracks[0].segments[0].length / 2 >= 4);
+  // Garbage doesn't throw.
+  assert.deepEqual(parseFIT(new Uint8Array([14, 0x20, 0, 0, 0xff, 0xff, 0, 0, 0x2e, 0x46, 0x49, 0x54, 0, 0, 0x45, 0x01])).tracks, []);
+});
+
 test('simplify keeps shape within tolerance and drops collinear points', () => {
   const line = [];
   for (let i = 0; i <= 100; i++) line.push(i, 0);
@@ -147,21 +182,22 @@ test('geometry: haversine, Web Mercator and metre scale', () => {
 });
 
 test('sample files: counts, de-duplication and year filter', async () => {
-  const names = ['walks-2023.gpx', 'walks-2024.gpx', 'walks-2025.kml', 'spots.gpx', 'export-sample.zip'];
+  const names = ['walks-2023.gpx', 'walks-2024.gpx', 'walks-2025.kml', 'spots.gpx', 'export-sample.zip', 'hike-2025.fit', 'garmin-export-sample.zip'];
   const files = [];
   for (const n of names) files.push({ id: n, ...prepare(await parseFile(n, sample(n))) });
 
   const counts = Object.fromEntries(files.map((f) => [f.id, new Set(f.tracks.map((t) => t.key)).size]));
-  assert.deepEqual(counts, { 'walks-2023.gpx': 3, 'walks-2024.gpx': 3, 'walks-2025.kml': 2, 'spots.gpx': 0, 'export-sample.zip': 5 });
+  assert.deepEqual(counts, { 'walks-2023.gpx': 3, 'walks-2024.gpx': 3, 'walks-2025.kml': 2, 'spots.gpx': 0, 'export-sample.zip': 5,
+    'hike-2025.fit': 1, 'garmin-export-sample.zip': 2 });
 
   const all = combine(files);
   const s = stats(all.tracks, all.waypoints);
-  assert.equal(s.walks, 8, 'the ZIP repeats 2024 and 2025 walks, which count once');
+  assert.equal(s.walks, 10, 'the ZIPs repeat walks, which count once; the ride and the course are skipped');
   assert.equal(s.spots, 7);
-  assert.ok(s.km > 15 && s.km < 60, `km ${s.km}`);
-  assert.deepEqual(years(all.tracks), [2023, 2024, 2025]);
+  assert.ok(s.km > 15 && s.km < 80, `km ${s.km}`);
+  assert.deepEqual(years(all.tracks), [2022, 2023, 2024, 2025]);
   assert.equal(new Set(filterByYears(all.tracks, 2024, 2024).map((t) => t.key)).size, 3);
-  assert.equal(new Set(filterByYears(all.tracks, 2024, null).map((t) => t.key)).size, 5);
+  assert.equal(new Set(filterByYears(all.tracks, 2024, null).map((t) => t.key)).size, 6);
 });
 
 test('large file: 300,000 points parse and simplify quickly', async () => {

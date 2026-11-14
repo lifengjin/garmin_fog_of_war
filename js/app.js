@@ -1,4 +1,4 @@
-import { parseFile, SUPPORTED } from './parse.js';
+import { parseFile, SUPPORTED, PARSER_VERSION } from './parse.js';
 import { prepare, combine, filterByYears, stats, years, yearOf } from './data.js';
 import { FogLayer } from './fog.js';
 import * as store from './store.js';
@@ -188,7 +188,7 @@ function toast(msg, { error = false, sticky = false } = {}) {
 async function addLocalFiles(list) {
   const chosen = [...list].filter((f) => SUPPORTED.test(f.name));
   if (!chosen.length) {
-    toast('Those files are not GPX, KML, KMZ or ZIP.', { error: true });
+    toast('Those files are not GPX, KML, KMZ, FIT or ZIP.', { error: true });
     return;
   }
   let added = 0;
@@ -273,7 +273,7 @@ async function syncDrive() {
     let changed = 0;
     for (const [i, f] of remote.entries()) {
       const id = `drive:${f.id}`;
-      const stamp = f.md5Checksum || f.modifiedTime;
+      const stamp = `${PARSER_VERSION}:${f.md5Checksum || f.modifiedTime}`;
       if (cached.get(id)?.modified === stamp) continue;
       toast(`Downloading ${f.name} (${i + 1} of ${remote.length})…`, { sticky: true });
       const bytes = await drive.download(f.id);

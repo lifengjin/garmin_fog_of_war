@@ -6,6 +6,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { makeZip } from './zip.mjs';
+import { makeFit } from './fit.mjs';
 
 const root = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const out = path.join(root, 'samples');
@@ -124,6 +125,46 @@ fs.writeFileSync(path.join(out, 'spots.gpx'), spots);
 fs.writeFileSync(path.join(out, 'export-sample.zip'), makeZip([
   { name: 'Explore/mapdata.gpx', data: w2024 },
   { name: 'Explore/extra.kmz', data: makeZip([{ name: 'doc.kml', data: w2025 }]), store: true },
+  { name: 'README.txt', data: 'Made-up sample export.' },
+]));
+
+// FIT files, as Garmin Connect stores recorded activities. A hike with a
+// pause (two segments), recorded with some compressed timestamps.
+const hikeFit = makeFit({
+  sport: 17, sportName: 'Hike',
+  segments: [walk(off(0.006, -0.010), 600, 1.9), walk(off(0.003, -0.012), 500, 4.0)],
+  startS: Date.UTC(2025, 9, 26, 17) / 1000, compressEvery: 4,
+});
+fs.writeFileSync(path.join(out, 'hike-2025.fit'), hikeFit);
+
+// A ZIP laid out like Garmin's account data export: the activity FIT files sit
+// in zips under DI_CONNECT/DI-Connect-Uploaded-Files. It repeats the 2025 hike
+// (counted once), adds a 2022 walk, and has a bike ride and a planned course,
+// which the map skips.
+const walkFit = makeFit({
+  sport: 11,
+  segments: [walk(off(-0.010, -0.008), 900, 0.6)],
+  startS: Date.UTC(2022, 9, 15, 18) / 1000,
+});
+const rideFit = makeFit({
+  sport: 2,
+  segments: [walk(off(-0.012, 0.012), 900, 1.2)],
+  startS: Date.UTC(2024, 6, 4, 16) / 1000, stepS: 1,
+});
+const courseFit = makeFit({
+  fileType: 6,
+  segments: [walk(off(0.010, 0.010), 600, 3.0)],
+  startS: Date.UTC(2025, 0, 1, 0) / 1000,
+});
+const uploaded = makeZip([
+  { name: 'sample_100001.fit', data: walkFit },
+  { name: 'sample_100002.fit', data: rideFit },
+  { name: 'sample_100003.fit', data: hikeFit },
+  { name: 'sample_100004.fit', data: courseFit },
+]);
+fs.writeFileSync(path.join(out, 'garmin-export-sample.zip'), makeZip([
+  { name: 'DI_CONNECT/DI-Connect-Uploaded-Files/UploadedFiles_0-_Part1.zip', data: uploaded, store: true },
+  { name: 'DI_CONNECT/DI-Connect-Fitness/sample_summarizedActivities.json', data: '[]' },
   { name: 'README.txt', data: 'Made-up sample export.' },
 ]));
 
