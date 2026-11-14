@@ -12,7 +12,7 @@ const $ = (id) => document.getElementById(id);
 
 const SETTINGS_KEY = 'foraging-fog-map:settings';
 const defaults = {
-  width: 30, units: 'imperial', fog: 78, base: 'usgs', baseChosen: false, spots: true, lines: false, filter: '',
+  width: 30, units: 'imperial', fog: 78, base: 'usgs', baseChosen: false, hide: false, spots: true, lines: false, filter: '',
   from: '', to: '', folder: DEFAULT_DRIVE_FOLDER, clientId: '', view: null,
 };
 let settings = { ...defaults };
@@ -95,6 +95,17 @@ function fmtDate(ms) {
 function spotPopup(w) {
   const el = document.createElement('div');
   el.className = 'spot-popup';
+  if (settings.hide) {
+    // Hide location: no name, notes or coordinates, which could give the place away.
+    const h = document.createElement('h3');
+    h.textContent = 'Spot';
+    el.appendChild(h);
+    const p = document.createElement('p');
+    p.className = 'meta';
+    p.textContent = 'Details hidden while Hide location is on.';
+    el.appendChild(p);
+    return el;
+  }
   const h = document.createElement('h3');
   h.textContent = w.name || 'Unnamed spot';
   el.appendChild(h);
@@ -132,7 +143,7 @@ function render() {
   const needle = settings.filter.trim().toLowerCase();
   const spots = all.waypoints.filter((w) => !needle || `${w.name} ${w.desc} ${w.sym}`.toLowerCase().includes(needle));
   for (const w of spots) {
-    L.marker([w.lat, w.lon], { icon: pinIcon, title: w.name || 'Spot', keyboard: true })
+    L.marker([w.lat, w.lon], { icon: pinIcon, title: settings.hide ? 'Spot' : (w.name || 'Spot'), keyboard: true })
       .bindPopup(() => spotPopup(w))
       .addTo(spotLayer);
   }
@@ -444,6 +455,21 @@ $('in-base').addEventListener('change', (e) => {
   settings.baseChosen = true;
   setBase(settings.base);
   save();
+});
+
+// Hide location: blurs the base map and hides spot names and the scale, so a
+// screenshot doesn't show where the walks are.
+function setHide() {
+  document.body.classList.toggle('hide-location', settings.hide);
+  map.closePopup();
+}
+setHide();
+$('in-hide').checked = settings.hide;
+$('in-hide').addEventListener('change', (e) => { settings.hide = e.target.checked; save(); setHide(); render(); });
+$('btn-unhide').addEventListener('click', () => {
+  settings.hide = false;
+  $('in-hide').checked = false;
+  save(); setHide(); render();
 });
 
 $('in-spots').checked = settings.spots;

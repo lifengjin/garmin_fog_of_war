@@ -28,6 +28,7 @@
 </head>
 <body>
   <div id="map" aria-label="Map"></div>
+  <button id="btn-unhide" class="hide-badge" type="button" aria-label="Location hidden. Show the map again.">Location hidden · Show</button>
 
   <div class="fab-stack" role="toolbar" aria-label="Map tools">
     <button id="btn-menu" class="fab" type="button" aria-label="Open menu" aria-controls="panel" aria-expanded="false">
@@ -102,6 +103,7 @@
           <option value="metric">Kilometres and metres</option>
         </select>
       </label>
+      <label class="check"><input id="in-hide" type="checkbox"> Hide location (for screenshots)</label>
       <label class="check"><input id="in-spots" type="checkbox" checked> Show spots</label>
       <label class="check"><input id="in-lines" type="checkbox"> Show walk lines</label>
       <label class="field">
