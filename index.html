@@ -10,7 +10,7 @@
     default-src 'self';
     script-src 'self' https://accounts.google.com/gsi/client;
     style-src 'self' 'unsafe-inline' https://accounts.google.com/gsi/style;
-    img-src 'self' data: blob: https://tile.openstreetmap.org https://*.tile.opentopomap.org;
+    img-src 'self' data: blob: https://tile.openstreetmap.org https://*.tile.opentopomap.org https://basemap.nationalmap.gov;
     connect-src 'self' https://www.googleapis.com https://accounts.google.com/gsi/;
     frame-src https://accounts.google.com/gsi/;
     worker-src 'self';
@@ -90,7 +90,8 @@
       <label class="field">
         <span>Map</span>
         <select id="in-base">
-          <option value="topo">Topographic (OpenTopoMap)</option>
+          <option value="usgs">Topographic, feet (USGS, US only)</option>
+          <option value="topo">Topographic, metres (OpenTopoMap)</option>
           <option value="osm">Streets (OpenStreetMap)</option>
         </select>
       </label>

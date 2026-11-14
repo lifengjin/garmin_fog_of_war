@@ -118,7 +118,7 @@ Because the Google project stays in Testing, Google may ask you to approve again
 | Cleared strip width | How wide a strip each walk clears (15–500 ft, or 5–150 m; default 100 ft). |
 | Fog darkness | How dark the fog is; lower it to see the map underneath. |
 | Walks from / to | Only clear fog for walks in those years (to see what you haven't revisited lately). Walks without dates always count. |
-| Map | Topographic (contour lines) or street map. |
+| Map | USGS topographic map with contours in feet (US only), OpenTopoMap with contours in metres, or a street map. Until you pick one, it follows the Units setting. |
 | Units | Miles and feet (the default), or kilometres and metres. |
 | Show spots / walk lines | Toggle the pins, and thin lines along the exact walks. |
 | Only show spots matching | Show only spots whose name or note contains a word, e.g. "chanterelle". |
@@ -128,7 +128,7 @@ Because the Google project stays in Testing, Google may ask you to approve again
 - **Routes are ignored.** Planned routes (GPX `<rte>`) don't clear fog, only recorded tracks. KML files don't say which lines are planned and which were walked, so all KML lines count as walks.
 - **GPS jumps are skipped.** If two consecutive points are more than 500 m apart (the device was off, or lost signal), the strip isn't drawn across the gap.
 - **Pauses aren't bridged.** When you pause the watch and resume somewhere else, the strip isn't drawn between the two places.
-- **Map tiles** come from OpenStreetMap and OpenTopoMap, which are free community services. Please keep usage personal and light.
+- **Map tiles** come from the USGS National Map, OpenStreetMap and OpenTopoMap. The USGS map covers the United States only; elsewhere, switch to OpenTopoMap. OpenStreetMap and OpenTopoMap are free community services, so please keep usage personal and light.
 
 ## Run it on your computer
 
@@ -166,4 +166,4 @@ npm run test:browser             # the whole app in headless Chromium, including
 
 - This project: MIT (see `LICENSE`).
 - [Leaflet](https://leafletjs.com): BSD 2-Clause (`vendor/leaflet/LICENSE`).
-- Map data © [OpenStreetMap](https://www.openstreetmap.org/copyright) contributors (ODbL). Topographic style © [OpenTopoMap](https://opentopomap.org) (CC-BY-SA).
+- Map data © [OpenStreetMap](https://www.openstreetmap.org/copyright) contributors (ODbL). Topographic style © [OpenTopoMap](https://opentopomap.org) (CC-BY-SA). US topographic tiles courtesy of the [U.S. Geological Survey](https://www.usgs.gov/) (The National Map).

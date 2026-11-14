@@ -12,7 +12,7 @@ const $ = (id) => document.getElementById(id);
 
 const SETTINGS_KEY = 'foraging-fog-map:settings';
 const defaults = {
-  width: 30, units: 'imperial', fog: 78, base: 'topo', spots: true, lines: false, filter: '',
+  width: 30, units: 'imperial', fog: 78, base: 'usgs', baseChosen: false, spots: true, lines: false, filter: '',
   from: '', to: '', folder: DEFAULT_DRIVE_FOLDER, clientId: '', view: null,
 };
 let settings = { ...defaults };
@@ -42,11 +42,19 @@ const bases = {
     maxZoom: 17, maxNativeZoom: 17, subdomains: 'abc',
     attribution: 'Map data © <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors, SRTM | Style © <a href="https://opentopomap.org">OpenTopoMap</a> (CC-BY-SA)',
   }),
+  // USGS topo: contours and elevations in feet, United States only.
+  usgs: L.tileLayer('https://basemap.nationalmap.gov/arcgis/rest/services/USGSTopo/MapServer/tile/{z}/{y}/{x}', {
+    maxZoom: 18, maxNativeZoom: 16,
+    attribution: 'Tiles courtesy of the <a href="https://www.usgs.gov/">U.S. Geological Survey</a> (The National Map)',
+  }),
   osm: L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
     maxZoom: 19,
     attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
   }),
 };
+// Until a base map is picked by hand, it follows the units: USGS topo (feet)
+// for miles and feet, OpenTopoMap (metres) for kilometres and metres.
+const baseName = () => (settings.baseChosen ? settings.base : (imperial() ? 'usgs' : 'topo'));
 let base = null;
 function setBase(name) {
   if (base) map.removeLayer(base);
@@ -61,7 +69,7 @@ const spotLayer = L.layerGroup();
 
 if (settings.view) map.setView(settings.view.center, settings.view.zoom);
 else map.setView([47.6, -122.0], 9);
-setBase(settings.base);
+setBase(baseName());
 map.on('moveend', () => {
   settings.view = { center: map.getCenter(), zoom: map.getZoom() };
   save();
@@ -425,12 +433,18 @@ $('in-units').addEventListener('change', (e) => {
   save();
   setWidthSlider();
   setScale();
+  if (!settings.baseChosen) { $('in-base').value = baseName(); setBase(baseName()); }
   render();
 });
 bindRange('in-fog', 'out-fog', 'fog', (v) => `${v}%`, (v) => fog.setOptions({ fogOpacity: v / 100 }));
 
-$('in-base').value = settings.base;
-$('in-base').addEventListener('change', (e) => { settings.base = e.target.value; setBase(settings.base); save(); });
+$('in-base').value = baseName();
+$('in-base').addEventListener('change', (e) => {
+  settings.base = e.target.value;
+  settings.baseChosen = true;
+  setBase(settings.base);
+  save();
+});
 
 $('in-spots').checked = settings.spots;
 $('in-spots').addEventListener('change', (e) => { settings.spots = e.target.checked; save(); render(); });

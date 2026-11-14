@@ -66,7 +66,8 @@ The files are read in your browser and never uploaded.
 
 - **◎** shows where you are, so you can see whether you're standing in fog.
 - **Without signal:** your tracks, spots and the app are stored on your device, so they still show. Map tiles only show for areas you've viewed recently, so open the area once while you have signal.
-- In **☰**, you can change how wide a strip each walk clears, how dark the fog is, which years count, the base map, the units (miles and feet, or kilometres and metres), and whether spots and walk lines show. **Only show spots matching** filters pins by name or note, for example "chanterelle".
+- In **☰**, you can change how wide a strip each walk clears, how dark the fog is, which years count, the units (miles and feet, or kilometres and metres), the base map, and whether spots and walk lines show. **Only show spots matching** filters pins by name or note, for example "chanterelle".
+- **Base map:** with miles and feet, the map is the USGS topo map, with contour lines in feet. It only covers the United States, so outside the US pick **Topographic, metres** under **☰ → Map**.
 
 ## If something goes wrong
 

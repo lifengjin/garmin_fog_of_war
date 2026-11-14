@@ -86,7 +86,7 @@ async function newPage(browser, base, viewport = { width: 1200, height: 800 }) {
   const errors = [];
   page.on('pageerror', (e) => errors.push(e.message));
   page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });
-  await page.route(/tile\.(opentopomap|openstreetmap)\.org/, (r) => r.fulfill({ body: TILE, contentType: 'image/png' }));
+  await page.route(/tile\.(opentopomap|openstreetmap)\.org|basemap\.nationalmap\.gov/, (r) => r.fulfill({ body: TILE, contentType: 'image/png' }));
   // Tests run as a fresh copy would: no Google client ID set in js/config.js.
   await page.route(/\/js\/config\.js$/, (r) => r.fulfill({
     contentType: 'text/javascript',
@@ -162,9 +162,15 @@ test('browser: local files, fog, spots, filters, persistence', async (t) => {
   assert.equal(await page.locator('#stat-km-unit').innerText(), 'mi walked');
   assert.equal(await page.locator('#out-width').innerText(), '100 ft');
   const miles = Number(await page.locator('#stat-km').innerText());
+  // The base map follows the units until one is picked: USGS topo (feet) here.
+  const tileHosts = () => page.evaluate(() => [...document.querySelectorAll('.leaflet-tile-pane img')].map((i) => new URL(i.src).host));
+  assert.equal(await page.locator('#in-base').inputValue(), 'usgs');
+  assert.ok((await tileHosts()).includes('basemap.nationalmap.gov'), 'USGS tiles shown');
   await page.selectOption('#in-units', 'metric');
   assert.equal(await page.locator('#stat-km-unit').innerText(), 'km walked');
   assert.equal(await page.locator('#out-width').innerText(), '30 m');
+  assert.equal(await page.locator('#in-base').inputValue(), 'topo');
+  await waitFor(page, () => [...document.querySelectorAll('.leaflet-tile-pane img')].some((i) => i.src.includes('opentopomap')));
   const km = Number(await page.locator('#stat-km').innerText());
   assert.ok(Math.abs(km / miles - 1.609) < 0.05, `${miles} mi vs ${km} km`);
 
