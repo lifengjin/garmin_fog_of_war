@@ -157,8 +157,18 @@ test('browser: local files, fog, spots, filters, persistence', async (t) => {
   assert.ok(cornerInfo.alphas[0] > 150, `fog present away from walks (alpha ${cornerInfo.alphas[0]})`);
   if (shots) await page.screenshot({ path: path.join(shots, 'desktop-z16.png') });
 
-  // Wider strip clears more.
+  // Units: miles and feet by default, kilometres and metres when chosen.
   await page.click('#btn-menu');
+  assert.equal(await page.locator('#stat-km-unit').innerText(), 'mi walked');
+  assert.equal(await page.locator('#out-width').innerText(), '100 ft');
+  const miles = Number(await page.locator('#stat-km').innerText());
+  await page.selectOption('#in-units', 'metric');
+  assert.equal(await page.locator('#stat-km-unit').innerText(), 'km walked');
+  assert.equal(await page.locator('#out-width').innerText(), '30 m');
+  const km = Number(await page.locator('#stat-km').innerText());
+  assert.ok(Math.abs(km / miles - 1.609) < 0.05, `${miles} mi vs ${km} km`);
+
+  // Wider strip clears more.
   await page.locator('#in-width').fill('120');
   await page.locator('#in-width').dispatchEvent('input');
   const wide = await fogInfo(page);

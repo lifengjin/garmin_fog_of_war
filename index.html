@@ -51,7 +51,7 @@
 
     <section class="stats" aria-live="polite">
       <div><span id="stat-walks">0</span><small>walks</small></div>
-      <div><span id="stat-km">0</span><small>km walked</small></div>
+      <div><span id="stat-km">0</span><small id="stat-km-unit">mi walked</small></div>
       <div><span id="stat-spots">0</span><small>spots</small></div>
     </section>
     <p id="stat-range" class="muted"></p>
@@ -70,8 +70,8 @@
     <section>
       <h2>Display</h2>
       <label class="field">
-        <span>Cleared strip width <output id="out-width">30 m</output></span>
-        <input id="in-width" type="range" min="5" max="150" step="5" value="30">
+        <span>Cleared strip width <output id="out-width">100 ft</output></span>
+        <input id="in-width" type="range" min="15" max="500" step="5" value="100">
       </label>
       <label class="field">
         <span>Fog darkness <output id="out-fog">78%</output></span>
@@ -92,6 +92,13 @@
         <select id="in-base">
           <option value="topo">Topographic (OpenTopoMap)</option>
           <option value="osm">Streets (OpenStreetMap)</option>
+        </select>
+      </label>
+      <label class="field">
+        <span>Units</span>
+        <select id="in-units">
+          <option value="imperial">Miles and feet</option>
+          <option value="metric">Kilometres and metres</option>
         </select>
       </label>
       <label class="check"><input id="in-spots" type="checkbox" checked> Show spots</label>

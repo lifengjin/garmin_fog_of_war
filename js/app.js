@@ -12,7 +12,7 @@ const $ = (id) => document.getElementById(id);
 
 const SETTINGS_KEY = 'foraging-fog-map:settings';
 const defaults = {
-  width: 30, fog: 78, base: 'topo', spots: true, lines: false, filter: '',
+  width: 30, units: 'imperial', fog: 78, base: 'topo', spots: true, lines: false, filter: '',
   from: '', to: '', folder: DEFAULT_DRIVE_FOLDER, clientId: '', view: null,
 };
 let settings = { ...defaults };
@@ -26,7 +26,16 @@ const clientId = () => (GOOGLE_CLIENT_ID || settings.clientId || '').trim();
 
 const map = L.map('map', { zoomControl: false, worldCopyJump: true, attributionControl: true });
 L.control.zoom({ position: 'bottomleft' }).addTo(map);
-L.control.scale({ position: 'bottomleft', imperial: true }).addTo(map);
+// Strip width is kept in metres; the units setting only changes what's shown.
+const FOOT = 0.3048;
+const MILE = 1609.344;
+const imperial = () => settings.units !== 'metric';
+let scale = null;
+function setScale() {
+  scale?.remove();
+  scale = L.control.scale({ position: 'bottomleft', imperial: imperial(), metric: !imperial() }).addTo(map);
+}
+setScale();
 
 const bases = {
   topo: L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', {
@@ -124,7 +133,9 @@ function render() {
 
   const s = stats(tracks, spots);
   $('stat-walks').textContent = s.walks.toLocaleString();
-  $('stat-km').textContent = s.km.toLocaleString(undefined, { maximumFractionDigits: s.km < 100 ? 1 : 0 });
+  const dist = imperial() ? (s.km * 1000) / MILE : s.km;
+  $('stat-km').textContent = dist.toLocaleString(undefined, { maximumFractionDigits: dist < 100 ? 1 : 0 });
+  $('stat-km-unit').textContent = imperial() ? 'mi walked' : 'km walked';
   $('stat-spots').textContent = s.spots.toLocaleString();
   $('stat-range').textContent = s.first ? `Walks from ${fmtDate(s.first)} to ${fmtDate(s.last)}` : '';
   document.body.dataset.walks = String(s.walks);
@@ -387,7 +398,35 @@ function bindRange(id, outId, key, fmt, apply) {
     save();
   });
 }
-bindRange('in-width', 'out-width', 'width', (v) => `${v} m`, (v) => fog.setOptions({ widthMetres: v }));
+// The width slider counts in feet or metres, depending on the units setting.
+function setWidthSlider() {
+  const el = $('in-width');
+  if (imperial()) {
+    Object.assign(el, { min: 15, max: 500, step: 5 });
+    el.value = Math.round(settings.width / FOOT / 5) * 5;
+    $('out-width').textContent = `${el.value} ft`;
+  } else {
+    Object.assign(el, { min: 5, max: 150, step: 5 });
+    el.value = Math.round(settings.width / 5) * 5;
+    $('out-width').textContent = `${el.value} m`;
+  }
+}
+setWidthSlider();
+$('in-width').addEventListener('input', (e) => {
+  const v = Number(e.target.value);
+  settings.width = imperial() ? v * FOOT : v;
+  $('out-width').textContent = `${v} ${imperial() ? 'ft' : 'm'}`;
+  fog.setOptions({ widthMetres: settings.width });
+  save();
+});
+$('in-units').value = imperial() ? 'imperial' : 'metric';
+$('in-units').addEventListener('change', (e) => {
+  settings.units = e.target.value;
+  save();
+  setWidthSlider();
+  setScale();
+  render();
+});
 bindRange('in-fog', 'out-fog', 'fog', (v) => `${v}%`, (v) => fog.setOptions({ fogOpacity: v / 100 }));
 
 $('in-base').value = settings.base;

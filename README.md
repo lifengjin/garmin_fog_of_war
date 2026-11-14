@@ -115,10 +115,11 @@ Because the Google project stays in Testing, Google may ask you to approve again
 
 | Setting | What it does |
 |---|---|
-| Cleared strip width | How wide a strip each walk clears (5–150 m, default 30 m). |
+| Cleared strip width | How wide a strip each walk clears (15–500 ft, or 5–150 m; default 100 ft). |
 | Fog darkness | How dark the fog is; lower it to see the map underneath. |
 | Walks from / to | Only clear fog for walks in those years (to see what you haven't revisited lately). Walks without dates always count. |
 | Map | Topographic (contour lines) or street map. |
+| Units | Miles and feet (the default), or kilometres and metres. |
 | Show spots / walk lines | Toggle the pins, and thin lines along the exact walks. |
 | Only show spots matching | Show only spots whose name or note contains a word, e.g. "chanterelle". |
 
