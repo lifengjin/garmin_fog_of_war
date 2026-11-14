@@ -164,6 +164,11 @@ npm run test:browser             # the whole app in headless Chromium, including
 
 `npm run samples` regenerates the made-up sample files, including the FIT files (written by `tools/fit.mjs`).
 
+## Planned
+
+- [Sync walks from Garmin Connect with a personal API key](https://github.com/lifengjin/garmin_fog_of_war/issues/1)
+- [Read spot icons from a Garmin watch's saved locations](https://github.com/lifengjin/garmin_fog_of_war/issues/2): the Garmin data export lists every spot as a blue flag, so the icons picked on the watch don't show yet.
+
 ## Credits and licenses
 
 - This project: MIT (see `LICENSE`).
