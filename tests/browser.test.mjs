@@ -190,12 +190,12 @@ test('browser: local files, fog, spots, filters, persistence', async (t) => {
   await page.locator('#in-fog').fill('78');
   await page.locator('#in-fog').dispatchEvent('input');
 
-  // Hide location: blurred base map, no scale, no spot names; fog unchanged.
+  // Hide location: no base map, no scale, no spot names; fog unchanged.
   const titles = () => page.evaluate(() => [...document.querySelectorAll('.leaflet-marker-icon[title]')].map((m) => m.title));
   assert.ok((await titles()).some((t) => t !== 'Spot'), 'spot names shown normally');
   assert.equal(await page.locator('.hide-badge').isVisible(), false);
   await page.check('#in-hide');
-  assert.ok(await page.evaluate(() => getComputedStyle(document.querySelector('.leaflet-tile-pane')).filter.includes('blur')), 'base map blurred');
+  assert.equal(await page.evaluate(() => getComputedStyle(document.querySelector('.leaflet-tile-pane')).visibility), 'hidden', 'base map hidden');
   assert.equal(await page.locator('.leaflet-control-scale').isVisible(), false, 'scale hidden');
   assert.equal(await page.locator('.hide-badge').isVisible(), true, 'badge shown');
   assert.ok((await titles()).every((t) => t === 'Spot'), 'spot names hidden');
@@ -206,7 +206,7 @@ test('browser: local files, fog, spots, filters, persistence', async (t) => {
   assert.equal((await fogInfo(page, [probe])).alphas[0], 0, 'walk still clears fog while hidden');
   await page.click('#btn-unhide');
   assert.equal(await page.isChecked('#in-hide'), false);
-  assert.equal(await page.evaluate(() => getComputedStyle(document.querySelector('.leaflet-tile-pane')).filter), 'none');
+  assert.equal(await page.evaluate(() => getComputedStyle(document.querySelector('.leaflet-tile-pane')).visibility), 'visible');
   assert.ok((await titles()).some((t) => t !== 'Spot'), 'spot names back');
 
   // Panning and zooming keep the fog aligned with the walk.

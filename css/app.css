@@ -104,7 +104,7 @@ body { font: 15px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; 
 .file-list .file-note { flex-basis: 100%; }
 .file-list li span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
-/* Hide location: blur the base map and drop the scale, for screenshots. */
+/* Hide location: hide the base map and drop the scale, for screenshots. */
 .hide-badge { display: none; }
 body.hide-location .hide-badge {
   display: block; position: fixed; z-index: 1000; left: calc(env(safe-area-inset-left, 0px) + 12px);
@@ -112,7 +112,10 @@ body.hide-location .hide-badge {
   background: var(--surface); color: var(--text); border: 1px solid var(--border);
   border-radius: 999px; padding: 6px 12px; box-shadow: var(--shadow);
 }
-body.hide-location .leaflet-tile-pane { filter: blur(14px) saturate(.5); }
+/* A blur still shows lakes, rivers and ridges, so the base map is hidden
+   outright and the cleared strips show a plain paper colour instead. */
+body.hide-location .leaflet-tile-pane { visibility: hidden; }
+body.hide-location #map { background: #e8e3d3; }
 body.hide-location .leaflet-control-scale { display: none; }
 
 .toast {

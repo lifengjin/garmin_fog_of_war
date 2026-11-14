@@ -457,7 +457,7 @@ $('in-base').addEventListener('change', (e) => {
   save();
 });
 
-// Hide location: blurs the base map and hides spot names and the scale, so a
+// Hide location: hides the base map, spot names and the scale, so a
 // screenshot doesn't show where the walks are.
 function setHide() {
   document.body.classList.toggle('hide-location', settings.hide);
