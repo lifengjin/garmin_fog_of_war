@@ -5,7 +5,7 @@
 // web addresses you list for it in Google Cloud. Leave it empty to use the
 // app with files you add from your phone or computer only. You can also
 // paste it in the app under Settings instead of editing this file.
-export const GOOGLE_CLIENT_ID = '';
+export const GOOGLE_CLIENT_ID = '815329584168-m6d673mqm4670lfqadcgb4cperet60mc.apps.googleusercontent.com';
 
 // Optional: the Drive folder to read, as a link, ID or exact folder name.
 // Can also be set in the app under Settings.

@@ -87,6 +87,11 @@ async function newPage(browser, base, viewport = { width: 1200, height: 800 }) {
   page.on('pageerror', (e) => errors.push(e.message));
   page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });
   await page.route(/tile\.(opentopomap|openstreetmap)\.org/, (r) => r.fulfill({ body: TILE, contentType: 'image/png' }));
+  // Tests run as a fresh copy would: no Google client ID set in js/config.js.
+  await page.route(/\/js\/config\.js$/, (r) => r.fulfill({
+    contentType: 'text/javascript',
+    body: fs.readFileSync(path.join(root, 'js/config.js'), 'utf8').replace(/GOOGLE_CLIENT_ID = '[^']*'/, "GOOGLE_CLIENT_ID = ''"),
+  }));
   await page.goto(base);
   await waitFor(page, () => !!window.__fogMap);
   return { ctx, page, errors };
