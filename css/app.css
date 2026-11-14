@@ -156,3 +156,6 @@ body.hide-location .leaflet-control-scale { display: none; }
 }
 .sight-status { margin: 2px 0 6px 26px; }
 #btn-sight-refresh { margin-left: 26px; }
+.sight-opt { margin-left: 26px; }
+label.sight-opt:not(.check) { display: flex; align-items: center; gap: 8px; font-size: 14px; }
+label.sight-opt select { flex: 1; min-width: 0; }

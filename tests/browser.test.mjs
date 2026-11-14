@@ -87,7 +87,7 @@ const FAKE_SIGHTINGS = Array.from({ length: 250 }, (_, i) => ({
   observed_on: i % 5 ? `2024-07-${String((i % 28) + 1).padStart(2, '0')}` : null,
   obscured: i === 249,
   geojson: { type: 'Point', coordinates: [-121.95 + (i % 25) * 0.004, 47.45 + Math.floor(i / 25) * 0.004] },
-  positional_accuracy: i % 3 ? 12 : 900,
+  positional_accuracy: i % 10 === 0 ? null : (i % 3 ? 12 : 900),
   quality_grade: i % 2 ? 'research' : 'needs_id',
   user: { login: `observer${i % 9}` },
 }));
@@ -447,7 +447,12 @@ test('browser: candystick sightings from iNaturalist', async (t) => {
   t.after(async () => { await browser.close(); server.close(); });
   const requests = [];
   const { page, errors } = await newPage(browser, base, undefined, { inatRequests: requests });
-  await waitFor(page, () => document.body.dataset.sightings === '249');
+  // By default only sightings placed within 500 m are shown.
+  const listed = FAKE_SIGHTINGS.filter((o) => !o.obscured);
+  const precise = listed.filter((o) => o.positional_accuracy != null && o.positional_accuracy <= 500).length;
+  const withAcc = listed.filter((o) => o.positional_accuracy != null).length;
+  await waitFor(page, (n) => document.body.dataset.sightings === String(n), precise);
+  assert.equal(await page.evaluate(() => document.body.dataset.sightingsAll), '249');
   assert.equal(requests.length, 2, 'two pages of 200');
   for (const u of requests) {
     assert.equal(u.searchParams.get('taxon_id'), '62481');
@@ -456,8 +461,17 @@ test('browser: candystick sightings from iNaturalist', async (t) => {
   assert.equal(requests[1].searchParams.get('id_above'), String(FAKE_SIGHTINGS[199].id));
   await page.click('#btn-menu');
   const status = await page.locator('#sight-status').innerText();
-  assert.match(status, /^249 sightings in Washington, updated /);
-  assert.match(status, /1 more aren't shown because iNaturalist hides their exact place/);
+  assert.match(status, new RegExp(`^Showing ${precise} of 249 sightings in Washington, updated `));
+  assert.match(status, /1 more aren't listed because iNaturalist hides their exact place/);
+  assert.equal(await page.inputValue('#in-sight-acc'), '500');
+  assert.equal(await page.locator('#in-sight-acc option:checked').innerText(), 'Within 0.3 mi');
+  await page.selectOption('#in-sight-acc', '0');
+  assert.equal(await page.evaluate(() => document.body.dataset.sightings), String(withAcc));
+  await page.check('#in-sight-noacc');
+  assert.equal(await page.evaluate(() => document.body.dataset.sightings), '249');
+  await page.uncheck('#in-sight-noacc');
+  await page.selectOption('#in-sight-acc', '500');
+  assert.equal(await page.evaluate(() => document.body.dataset.sightings), String(precise));
   assert.equal(await page.evaluate(() => window.__fogMap.sightingsShown()), true);
   assert.match(await page.locator('.leaflet-control-attribution').innerText(), /Sightings from iNaturalist/);
 
@@ -492,7 +506,8 @@ test('browser: candystick sightings from iNaturalist', async (t) => {
 
   // Kept on the device: a reload shows them without asking iNaturalist again.
   await page.reload();
-  await waitFor(page, () => document.body.dataset.sightings === '249');
+  await waitFor(page, () => document.body.dataset.sightingsAll === '249');
+  assert.equal(await page.evaluate(() => document.body.dataset.sightings), String(precise));
   assert.equal(requests.length, 2);
   assert.deepEqual(errors, []);
 });

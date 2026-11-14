@@ -108,6 +108,10 @@
       <label class="check"><input id="in-spots" type="checkbox" checked> Show spots</label>
       <div class="field">
         <label class="check"><input id="in-sightings" type="checkbox" checked> Candystick sightings (iNaturalist, WA)</label>
+        <label class="sight-opt"><span>Only show sightings</span>
+          <select id="in-sight-acc" aria-label="Only show sightings this precise"></select>
+        </label>
+        <label class="check sight-opt"><input id="in-sight-noacc" type="checkbox"> Include sightings with no stated precision</label>
         <p id="sight-status" class="muted sight-status" role="status">Not loaded yet.</p>
         <button id="btn-sight-refresh" class="btn" type="button">Update sightings</button>
       </div>

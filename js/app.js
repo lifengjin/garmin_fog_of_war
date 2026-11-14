@@ -13,7 +13,7 @@ const $ = (id) => document.getElementById(id);
 
 const SETTINGS_KEY = 'foraging-fog-map:settings';
 const defaults = {
-  width: 30, units: 'imperial', fog: 78, base: 'usgs', baseChosen: false, hide: false, hiddenIcons: [], skipFast: true, sightings: true, spots: true, lines: false, filter: '',
+  width: 30, units: 'imperial', fog: 78, base: 'usgs', baseChosen: false, hide: false, hiddenIcons: [], skipFast: true, sightings: true, sightMaxAcc: 500, sightNoAcc: false, spots: true, lines: false, filter: '',
   from: '', to: '', folder: DEFAULT_DRIVE_FOLDER, clientId: '', view: null,
 };
 let settings = { ...defaults };
@@ -111,9 +111,28 @@ function sightPopup(o) {
   return el;
 }
 
+// Sightings whose place is vaguer than the chosen precision, or that give no
+// precision at all, are left out unless asked for.
+const SIGHT_ACC_STEPS = [100, 250, 500, 1000, 5000, 0]; // metres; 0 means any
+function sightAccLabel(m) {
+  if (!m) return 'Any precision';
+  if (imperial()) return m < 300 ? `Within ${Math.round(m * 3.28084 / 10) * 10} ft` : `Within ${(m / MILE).toLocaleString(undefined, { maximumFractionDigits: 1 })} mi`;
+  return m < 1000 ? `Within ${m} m` : `Within ${m / 1000} km`;
+}
+function fillSightAcc() {
+  const sel = $('in-sight-acc');
+  sel.replaceChildren(...SIGHT_ACC_STEPS.map((m) => new Option(sightAccLabel(m), String(m))));
+  sel.value = String(settings.sightMaxAcc || 0);
+}
+const sightVisible = (o) => (o.acc == null ? settings.sightNoAcc : (!settings.sightMaxAcc || o.acc <= settings.sightMaxAcc));
+let sightShown = 0;
+
 function renderSightings() {
   sightLayer.clearLayers();
+  sightShown = 0;
   for (const o of sightData?.items || []) {
+    if (!sightVisible(o)) continue;
+    sightShown++;
     L.circleMarker([o.lat, o.lon], {
       renderer: sightRenderer, radius: 6, weight: 2, color: '#fff', fillColor: '#c2185b', fillOpacity: 0.9,
     }).bindPopup(() => sightPopup(o)).addTo(sightLayer);
@@ -132,12 +151,13 @@ function updateSightStatus(progress) {
   else if (sightError && !sightData) text = `Couldn't get sightings from iNaturalist: ${sightError}`;
   else if (!sightData) text = 'Not loaded yet.';
   else {
-    text = `${n.toLocaleString()} sightings in ${SIGHTINGS.place}, updated ${fmtDate(sightData.fetchedAt)}.`;
-    if (sightData.obscured) text += ` ${sightData.obscured.toLocaleString()} more aren't shown because iNaturalist hides their exact place.`;
+    text = `Showing ${sightShown.toLocaleString()} of ${n.toLocaleString()} sightings in ${SIGHTINGS.place}, updated ${fmtDate(sightData.fetchedAt)}.`;
+    if (sightData.obscured) text += ` ${sightData.obscured.toLocaleString()} more aren't listed because iNaturalist hides their exact place.`;
     if (sightError) text += ` The last update failed: ${sightError}`;
   }
   el.textContent = text;
-  document.body.dataset.sightings = String(n);
+  document.body.dataset.sightings = String(sightShown);
+  document.body.dataset.sightingsAll = String(n);
   $('btn-sight-refresh').disabled = !!sightLoading;
 }
 
@@ -609,6 +629,7 @@ $('in-units').addEventListener('change', (e) => {
   setWidthSlider();
   setScale();
   if (!settings.baseChosen) { $('in-base').value = baseName(); setBase(baseName()); }
+  fillSightAcc();
   render();
 });
 bindRange('in-fog', 'out-fog', 'fog', (v) => `${v}%`, (v) => fog.setOptions({ fogOpacity: v / 100 }));
@@ -643,6 +664,10 @@ $('in-fast').addEventListener('change', (e) => { settings.skipFast = e.target.ch
 $('in-sightings').checked = settings.sightings;
 $('in-sightings').addEventListener('change', (e) => { settings.sightings = e.target.checked; save(); renderSightings(); loadSightings(); });
 $('btn-sight-refresh').addEventListener('click', () => loadSightings({ force: true }));
+fillSightAcc();
+$('in-sight-acc').addEventListener('change', (e) => { settings.sightMaxAcc = Number(e.target.value) || 0; save(); renderSightings(); });
+$('in-sight-noacc').checked = settings.sightNoAcc;
+$('in-sight-noacc').addEventListener('change', (e) => { settings.sightNoAcc = e.target.checked; save(); renderSightings(); });
 
 $('in-spots').checked = settings.spots;
 $('in-spots').addEventListener('change', (e) => { settings.spots = e.target.checked; save(); render(); });
