@@ -68,6 +68,7 @@ The files are read in your browser and never uploaded.
 - **Without signal:** your tracks, spots and the app are stored on your device, so they still show. Map tiles only show for areas you've viewed recently, so open the area once while you have signal.
 - In **☰**, you can change how wide a strip each walk clears, how dark the fog is, which years count, the units (miles and feet, or kilometres and metres), the base map, and whether spots and walk lines show. **Only show spots matching** filters pins by name or note, for example "chanterelle".
 - **Spot colours:** each spot's pin takes the colour of the icon you gave it in Garmin, and **☰ → Spot icons** lists your icons with how many spots use each. Untick an icon to hide those spots.
+- **Driving left on the watch:** stretches faster than 4 mph, like a drive home with the watch still recording, are left out of the fog. Runs over 4 mph are left out too; untick **☰ → Leave out driving** to keep them.
 - **Sharing a screenshot:** turn on **☰ → Hide location** first. It hides the map underneath, spot names and the scale, leaving only your walks and the fog, so the picture doesn't show where you walk. Tap **Location hidden · Show** at the top left to turn it off.
 - **Base map:** with miles and feet, the map is the USGS topo map, with contour lines in feet. It only covers the United States, so outside the US pick **Topographic, metres** under **☰ → Map**.
 

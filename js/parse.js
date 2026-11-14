@@ -97,29 +97,36 @@ export function parseGPX(xml) {
     const head = trk.inner.split(new RegExp(`<${P}trkseg\\b`))[0];
     const name = childText(head, 'name');
     const segments = [];
+    const times = []; // one timestamp per point (NaN if missing), per segment
     let time = null;
     let endTime = null;
     for (const seg of blocks(trk.inner, 'trkseg')) {
       const pts = [];
+      const ts = [];
       for (const pt of blocks(seg.inner, 'trkpt')) {
         const lat = parseFloat(attr(pt.attrs, 'lat'));
         const lon = parseFloat(attr(pt.attrs, 'lon'));
         if (!validLatLon(lat, lon)) continue;
         pts.push(lat, lon);
+        let t = null;
         if (pt.inner) {
           const tm = /<(?:[\w.-]+:)?time>([^<]*)</.exec(pt.inner);
           if (tm) {
-            const t = parseTime(tm[1]);
+            t = parseTime(tm[1]);
             if (t != null) {
               if (time == null) time = t;
               endTime = t;
             }
           }
         }
+        ts.push(t ?? NaN);
       }
-      if (pts.length >= 4) segments.push(Float64Array.from(pts));
+      if (pts.length >= 4) {
+        segments.push(Float64Array.from(pts));
+        times.push(Float64Array.from(ts));
+      }
     }
-    if (segments.length) tracks.push({ name, time, endTime, segments });
+    if (segments.length) tracks.push({ name, time, endTime, segments, times });
   }
 
   for (const w of blocks(xml, 'wpt')) {
@@ -183,12 +190,16 @@ export function parseKML(xml) {
         const [lon, lat] = m[1].trim().split(/\s+/).map(Number);
         if (validLatLon(lat, lon)) pts.push(lat, lon);
       }
-      const whens = [...tr.inner.matchAll(/<(?:[\w.-]+:)?when>([^<]*)</g)].map((x) => parseTime(x[1])).filter((x) => x != null);
+      const allWhens = [...tr.inner.matchAll(/<(?:[\w.-]+:)?when>([^<]*)</g)].map((x) => parseTime(x[1]));
+      const whens = allWhens.filter((x) => x != null);
       if (pts.length >= 4) {
-        tracks.push({
+        const track = {
           name, time: whens[0] ?? time, endTime: whens[whens.length - 1] ?? endTime,
           segments: [Float64Array.from(pts)],
-        });
+        };
+        // Times line up with points only when every coord had a valid position.
+        if (allWhens.length === pts.length / 2) track.times = [Float64Array.from(allWhens, (x) => x ?? NaN)];
+        tracks.push(track);
         found = true;
       }
     }
@@ -284,7 +295,7 @@ export async function readZip(bytes) {
 export const SUPPORTED = /\.(gpx|kml|kmz|fit|zip)$/i;
 
 // Bump when parsing changes, so files cached from Drive are read again.
-export const PARSER_VERSION = 4;
+export const PARSER_VERSION = 5;
 
 function sniff(name, bytes) {
   const ext = (/\.([a-z0-9]+)$/i.exec(name)?.[1] || '').toLowerCase();

@@ -6,8 +6,8 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { parseGPX, parseKML, parseFile, decodeText } from '../js/parse.js';
-import { simplify, simplifyLatLon, splitOnGaps, haversine, toUV, metresToUV } from '../js/geo.js';
-import { prepare, combine, filterByYears, stats, years } from '../js/data.js';
+import { simplify, simplifyLatLon, splitOnGaps, splitBySpeed, haversine, toUV, metresToUV } from '../js/geo.js';
+import { prepare, combine, filterByYears, stats, years, FAST_MPH } from '../js/data.js';
 import { makeZip } from '../tools/zip.mjs';
 import { makeFit } from '../tools/fit.mjs';
 import { parseFIT } from '../js/fit.js';
@@ -226,4 +226,67 @@ test('large file: 300,000 points parse and simplify quickly', async () => {
   assert.equal(before, 300000);
   console.log(`  ${(xml.length / 1e6).toFixed(1)} MB: parse ${(t1 - t0).toFixed(0)} ms, simplify ${(t2 - t1).toFixed(0)} ms, ${before} -> ${after} points`);
   assert.ok(t2 - t0 < 10000);
+});
+
+// A made-up track: [seconds, metres per second] legs, heading east from a
+// point, one point per second, with up to `jitter` metres of GPS noise.
+function legs(spec, jitter = 0, start = [47.5, -121.8]) {
+  let lat = start[0], lon = start[1], t = Date.UTC(2025, 9, 1, 16);
+  const pts = [], times = [];
+  let seed = 7;
+  const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647 - 0.5) * 2;
+  const mPerDegLon = 111320 * Math.cos((lat * Math.PI) / 180);
+  for (const [secs, mps] of spec) {
+    for (let i = 0; i < secs; i++) {
+      lon += mps / mPerDegLon;
+      t += 1000;
+      pts.push(lat + (rnd() * jitter) / 111320, lon + (rnd() * jitter) / mPerDegLon);
+      times.push(t);
+    }
+  }
+  return { points: Float64Array.from(pts), times: Float64Array.from(times) };
+}
+const mph = (v) => (v * 1609.344) / 3600;
+
+test('splitBySpeed keeps walking and drops driving', () => {
+  const max = mph(FAST_MPH);
+  assert.equal(FAST_MPH, 4);
+
+  // Walking at 3 mph with 4 m of GPS noise, and standing still with noise: all kept.
+  for (const spec of [[[900, mph(3)]], [[600, 0]], [[600, mph(3.8)]]]) {
+    const { points, times } = legs(spec, 4);
+    const r = splitBySpeed(points, times, max);
+    assert.equal(r.fast.length, 0, JSON.stringify(spec));
+    assert.equal(r.slow.length, 1);
+  }
+
+  // Walk, drive with a 60 s stop at a junction, walk again.
+  const { points, times } = legs([[600, mph(2.5)], [180, mph(35)], [60, 0], [240, mph(30)], [300, mph(2)]], 3);
+  const r = splitBySpeed(points, times, max);
+  assert.equal(r.fast.length, 1, 'the drive, stop included, is one stretch');
+  assert.equal(r.slow.length, 2, 'walks before and after');
+  // The fast stretch starts and ends within about 15 s of the car.
+  const span = (a) => haversine(a[0], a[1], a[a.length - 2], a[a.length - 1]);
+  const walk1 = 600 * mph(2.5), drive = mph(35) * 180 + mph(30) * 240;
+  assert.ok(Math.abs(span(r.fast[0]) - drive) < 120, `drive ${span(r.fast[0])} vs ${drive}`);
+  assert.ok(Math.abs(span(r.slow[0]) - walk1) < 30, `first walk ${span(r.slow[0])} vs ${walk1}`);
+
+  // No times: nothing can be measured, so all kept.
+  assert.equal(splitBySpeed(points, null, max).fast.length, 0);
+});
+
+test('prepare marks driving in a Garmin FIT walk', () => {
+  // makeFit writes a point every stepS seconds; 3 s steps of 3.5 m is a walk,
+  // of 40 m is driving.
+  const step = (n, metres, from) => Array.from({ length: n }, (_, i) => [from[0], from[1] + ((i + 1) * metres) / 75000]);
+  const walk1 = step(200, 3.5, [47.5, -121.8]);
+  const drive = step(120, 40, walk1[walk1.length - 1]);
+  const fit = makeFit({ segments: [[...walk1, ...drive]], startS: Date.UTC(2025, 9, 1, 16) / 1000 });
+  const parsed = parseFIT(fit);
+  assert.equal(parsed.tracks[0].times[0].length, 320);
+  const p = prepare(parsed);
+  assert.equal(p.tracks.filter((t) => t.fast).length, 1);
+  assert.ok(p.tracks.some((t) => !t.fast));
+  const walked = stats(p.tracks.filter((t) => !t.fast), []).km;
+  assert.ok(walked > 0.5 && walked < 0.9, `walked ${walked} km`);
 });

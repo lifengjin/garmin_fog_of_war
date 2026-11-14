@@ -125,11 +125,17 @@ function parseOne(dv, pos, end) {
   let firstTime = null;
   let lastTime = null;
   const segments = [];
+  const times = [];
   let pts = [];
+  let ptTimes = [];
 
   const closeSegment = () => {
-    if (pts.length >= 4) segments.push(Float64Array.from(pts));
+    if (pts.length >= 4) {
+      segments.push(Float64Array.from(pts));
+      times.push(Float64Array.from(ptTimes));
+    }
     pts = [];
+    ptTimes = [];
   };
 
   while (pos < end) {
@@ -236,6 +242,9 @@ function parseOne(dv, pos, end) {
           const t = FIT_EPOCH_MS + ts * 1000;
           if (firstTime == null) firstTime = t;
           lastTime = t;
+          ptTimes.push(t);
+        } else {
+          ptTimes.push(NaN);
         }
         break;
       }
@@ -249,5 +258,5 @@ function parseOne(dv, pos, end) {
   if (sport != null && !ON_FOOT_SPORTS.has(sport)) return { skip: 'notOnFoot' };
   if (!segments.length) return { skip: 'noGps' };
   const label = sportName || ON_FOOT_SPORTS.get(sport ?? 0) || 'Activity';
-  return { track: { name: label, time: firstTime, endTime: lastTime, sport, segments } };
+  return { track: { name: label, time: firstTime, endTime: lastTime, sport, segments, times } };
 }

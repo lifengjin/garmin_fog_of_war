@@ -12,7 +12,7 @@ const $ = (id) => document.getElementById(id);
 
 const SETTINGS_KEY = 'foraging-fog-map:settings';
 const defaults = {
-  width: 30, units: 'imperial', fog: 78, base: 'usgs', baseChosen: false, hide: false, hiddenIcons: [], spots: true, lines: false, filter: '',
+  width: 30, units: 'imperial', fog: 78, base: 'usgs', baseChosen: false, hide: false, hiddenIcons: [], skipFast: true, spots: true, lines: false, filter: '',
   from: '', to: '', folder: DEFAULT_DRIVE_FOLDER, clientId: '', view: null,
 };
 let settings = { ...defaults };
@@ -202,7 +202,8 @@ function renderIconList(syms, counts) {
 function render() {
   const from = Number(settings.from) || null;
   const to = Number(settings.to) || null;
-  const tracks = filterByYears(all.tracks, from, to);
+  const onFoot = settings.skipFast ? all.tracks.filter((t) => !t.fast) : all.tracks;
+  const tracks = filterByYears(onFoot, from, to);
   fog.setTracks(tracks);
 
   spotLayer.clearLayers();
@@ -541,6 +542,9 @@ $('btn-unhide').addEventListener('click', () => {
   $('in-hide').checked = false;
   save(); setHide(); render();
 });
+
+$('in-fast').checked = settings.skipFast;
+$('in-fast').addEventListener('change', (e) => { settings.skipFast = e.target.checked; save(); render(); });
 
 $('in-spots').checked = settings.spots;
 $('in-spots').addEventListener('change', (e) => { settings.spots = e.target.checked; save(); render(); });

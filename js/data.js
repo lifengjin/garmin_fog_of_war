@@ -1,6 +1,12 @@
 // Turns parsed files into what the map draws. Pure functions (tested in Node).
 
-import { simplifyLatLon, splitOnGaps, trackKey, waypointKey, trackLength } from './geo.js';
+import { simplifyLatLon, splitOnGaps, splitBySpeed, trackKey, waypointKey, trackLength } from './geo.js';
+
+// Stretches faster than this (sustained for half a minute) are taken as not on
+// foot, e.g. driving with the watch still recording. They're kept, marked
+// fast, so the menu can show them again.
+export const FAST_MPH = 4;
+const FAST_MPS = (FAST_MPH * 1609.344) / 3600;
 
 // Prepare one parsed file for storage: drop GPS jumps, simplify to ~2 m.
 // Each stored piece keeps its walk's key, so a walk split into several
@@ -9,12 +15,19 @@ export function prepare(parsed) {
   const tracks = [];
   for (const t of parsed.tracks) {
     const key = trackKey(t);
-    for (const segment of t.segments) {
-      for (const part of splitOnGaps(segment)) {
-        const points = simplifyLatLon(part, 2);
-        tracks.push({ key, name: t.name || '', time: t.time ?? null, endTime: t.endTime ?? null, points, length: trackLength(points) });
+    t.segments.forEach((segment, si) => {
+      const { slow, fast } = splitBySpeed(segment, t.times?.[si], FAST_MPS);
+      for (const [pieces, isFast] of [[slow, false], [fast, true]]) {
+        for (const piece of pieces) {
+          for (const part of splitOnGaps(piece)) {
+            const points = simplifyLatLon(part, 2);
+            const track = { key, name: t.name || '', time: t.time ?? null, endTime: t.endTime ?? null, points, length: trackLength(points) };
+            if (isFast) track.fast = true;
+            tracks.push(track);
+          }
+        }
       }
-    }
+    });
   }
   const waypoints = parsed.waypoints.map((w) => ({ ...w, key: waypointKey(w) }));
   return { tracks, waypoints, parts: parsed.parts || [], fit: parsed.fit || null };

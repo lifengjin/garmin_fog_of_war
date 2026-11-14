@@ -381,3 +381,33 @@ test('browser: Garmin FIT files and a Garmin-style export ZIP', async (t) => {
   assert.ok(notes.includes('Garmin activities: 2 of 3 read (1 not on foot)'), JSON.stringify(notes));
   assert.deepEqual(errors, []);
 });
+
+test('browser: driving left on the watch is left out', async (t) => {
+  const server = await serve();
+  const base = `http://127.0.0.1:${server.address().port}/`;
+  const browser = await launch();
+  t.after(async () => { await browser.close(); server.close(); });
+  const { page, errors } = await newPage(browser, base);
+  // A made-up walk of about 0.4 mi at 2.6 mph, then about 3 mi of driving.
+  const start = Date.UTC(2025, 5, 1, 15);
+  const pts = [];
+  let lat = 47.6;
+  for (let i = 0; i < 320; i++) {
+    lat += (i < 200 ? 3.5 : 40) / 111320;
+    pts.push(`<trkpt lat="${lat.toFixed(7)}" lon="-121.9"><time>${new Date(start + i * 3000).toISOString()}</time></trkpt>`);
+  }
+  const gpx = `<?xml version="1.0"?><gpx version="1.1" creator="test" xmlns="http://www.topografix.com/GPX/1/1"><trk><name>Walk then drive</name><trkseg>${pts.join('')}</trkseg></trk></gpx>`;
+  await page.setInputFiles('#file-input', { name: 'walk-then-drive.gpx', mimeType: 'application/gpx+xml', buffer: Buffer.from(gpx) });
+  await waitFor(page, () => document.body.dataset.walks === '1');
+  const miles = async () => Number((await page.locator('#stat-km').innerText()).replace(/,/g, ''));
+  const walked = await miles();
+  assert.ok(walked > 0.3 && walked < 0.6, `only the walk counts (${walked} mi)`);
+  await page.click('#btn-menu');
+  assert.equal(await page.isChecked('#in-fast'), true);
+  await page.uncheck('#in-fast');
+  const all = await miles();
+  assert.ok(all > 3, `the drive counts once the switch is off (${all} mi)`);
+  await page.check('#in-fast');
+  assert.equal(await miles(), walked);
+  assert.deepEqual(errors, []);
+});

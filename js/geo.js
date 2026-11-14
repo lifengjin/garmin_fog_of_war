@@ -130,6 +130,83 @@ export function splitOnGaps(points, maxGapMetres = 500) {
   return parts;
 }
 
+// Split a track into stretches done on foot and stretches that were too fast
+// for walking (e.g. driving home with the watch still recording).
+// times holds one timestamp (ms) per point, NaN where unknown. Speed is
+// measured over windowSec, start to end in a straight line, so GPS jitter while
+// standing still doesn't count as moving, and must stay too fast for
+// minFastSec. Fast stretches separated by a short
+// slow gap (a stop at a junction) are joined. Returns { slow: [], fast: [] },
+// each a list of flat lat/lon arrays.
+export function splitBySpeed(points, times, maxMps, windowSec = 60, minFastSec = 30, joinSec = 90, trimSec = 15) {
+  const n = points.length / 2;
+  if (!times || times.length !== n || n < 2) return { slow: [points], fast: [] };
+  // For each point, the straight-line speed over the next windowSec, and the
+  // point that window ends at.
+  const over = new Uint8Array(n);
+  const ends = new Int32Array(n).fill(-1);
+  let j = 0;
+  for (let i = 0; i < n - 1; i++) {
+    const ti = times[i];
+    if (!Number.isFinite(ti)) continue;
+    if (j <= i) j = i + 1;
+    while (j < n - 1 && !(times[j] - ti >= windowSec * 1000)) j++;
+    const dt = (times[j] - ti) / 1000;
+    if (!(dt >= windowSec)) continue;
+    ends[i] = j;
+    over[i] = haversine(points[2 * i], points[2 * i + 1], points[2 * j], points[2 * j + 1]) / dt > maxMps ? 1 : 0;
+  }
+  // Only a run of fast windows lasting minFastSec counts, so a GPS glitch doesn't.
+  const fast = new Uint8Array(n - 1); // per step i -> i+1
+  for (let a = 0; a < n; ) {
+    if (!over[a]) { a++; continue; }
+    let b = a;
+    while (b + 1 < n && over[b + 1]) b++;
+    if ((times[b] - times[a]) / 1000 >= minFastSec) {
+      for (let i = a; i <= b; i++) fast.fill(1, i, ends[i]);
+    }
+    a = b + 1;
+  }
+  // A window that starts on foot and ends in the car is fast overall, so trim
+  // each fast stretch back to where it's fast over a short trimSec.
+  const quick = (i, dir) => {
+    let k = i;
+    while (k + dir >= 0 && k + dir < n && Math.abs(times[k + dir] - times[i]) < trimSec * 1000) k += dir;
+    const dt = Math.abs(times[k] - times[i]) / 1000;
+    return dt > 0 && haversine(points[2 * i], points[2 * i + 1], points[2 * k], points[2 * k + 1]) / dt > maxMps;
+  };
+  for (let a = 0; a < n - 1; ) {
+    if (!fast[a]) { a++; continue; }
+    let b = a;
+    while (b + 1 < n - 1 && fast[b + 1]) b++;
+    let s0 = a, s1 = b;
+    while (s0 < s1 && !quick(s0, 1)) fast[s0++] = 0;
+    while (s1 > s0 && !quick(s1 + 1, -1)) fast[s1--] = 0;
+    a = b + 1;
+  }
+  // Join fast stretches separated by a short slow gap.
+  let lastFastEnd = -1;
+  for (let i = 0; i < n - 1; i++) {
+    if (!fast[i]) continue;
+    if (lastFastEnd >= 0 && i > lastFastEnd + 1) {
+      const gap = (times[i] - times[lastFastEnd + 1]) / 1000;
+      if (gap <= joinSec) fast.fill(1, lastFastEnd + 1, i);
+    }
+    lastFastEnd = i;
+  }
+  const slow = [];
+  const fastParts = [];
+  let start = 0;
+  for (let i = 1; i <= n - 1; i++) {
+    if (i === n - 1 || fast[i] !== fast[start]) {
+      const part = points.slice(2 * start, 2 * (i + 1));
+      if (part.length >= 4) (fast[start] ? fastParts : slow).push(part);
+      start = i;
+    }
+  }
+  return { slow, fast: fastParts };
+}
+
 // Stable-ish fingerprint so the same walk imported twice (e.g. from a
 // single GPX and from a full Garmin export) only counts once.
 export function trackKey(t) {
