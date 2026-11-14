@@ -330,5 +330,7 @@ test('browser: Garmin FIT files and a Garmin-style export ZIP', async (t) => {
   await waitFor(page, () => document.body.dataset.walks === '2');
   const info = await fogInfo(page);
   assert.ok(info.clearShare > 0.001, `fog cleared along the FIT walks (${info.clearShare})`);
+  const notes = await page.locator('.file-note').allInnerTexts();
+  assert.ok(notes.includes('Garmin activities: 2 of 3 read (1 not on foot)'), JSON.stringify(notes));
   assert.deepEqual(errors, []);
 });

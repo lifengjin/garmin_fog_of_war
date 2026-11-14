@@ -100,7 +100,8 @@ body { font: 15px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; 
 .check input { width: 18px; height: 18px; accent-color: var(--accent); }
 
 .file-list { list-style: none; padding: 0; margin: 14px 0 0; font-size: 13px; color: var(--muted); }
-.file-list li { display: flex; justify-content: space-between; gap: 8px; padding: 6px 0; border-top: 1px solid var(--border); }
+.file-list li { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 2px 8px; padding: 6px 0; border-top: 1px solid var(--border); }
+.file-list .file-note { flex-basis: 100%; }
 .file-list li span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 .toast {

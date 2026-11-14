@@ -282,7 +282,7 @@ export async function readZip(bytes) {
 export const SUPPORTED = /\.(gpx|kml|kmz|fit|zip)$/i;
 
 // Bump when parsing changes, so files cached from Drive are read again.
-export const PARSER_VERSION = 2;
+export const PARSER_VERSION = 3;
 
 function sniff(name, bytes) {
   const ext = (/\.([a-z0-9]+)$/i.exec(name)?.[1] || '').toLowerCase();
@@ -305,7 +305,7 @@ export async function parseFile(name, input, depth = 0) {
   if (kind === 'fit') return { ...parseFIT(bytes), parts: [name] };
   if ((kind === 'zip' || kind === 'kmz') && depth < 3) {
     const zip = await readZip(bytes);
-    const result = { tracks: [], waypoints: [], parts: [] };
+    const result = { tracks: [], waypoints: [], parts: [], fit: { activities: 0, read: 0, notActivity: 0, notOnFoot: 0, noGps: 0 } };
     for (const entry of zip.entries) {
       if (entry.name.endsWith('/') || !SUPPORTED.test(entry.name)) continue;
       if (/(^|\/)__MACOSX\//.test(entry.name)) continue;
@@ -313,6 +313,7 @@ export async function parseFile(name, input, depth = 0) {
       result.tracks.push(...inner.tracks);
       result.waypoints.push(...inner.waypoints);
       result.parts.push(...inner.parts.map((x) => `${name} › ${x}`));
+      if (inner.fit) for (const k in result.fit) result.fit[k] += inner.fit[k] || 0;
     }
     return result;
   }

@@ -17,7 +17,7 @@ export function prepare(parsed) {
     }
   }
   const waypoints = parsed.waypoints.map((w) => ({ ...w, key: waypointKey(w) }));
-  return { tracks, waypoints, parts: parsed.parts || [] };
+  return { tracks, waypoints, parts: parsed.parts || [], fit: parsed.fit || null };
 }
 
 // Merge every cached file into one de-duplicated set.

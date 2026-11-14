@@ -150,6 +150,20 @@ function render() {
     const b = document.createElement('span');
     b.textContent = `${f.tracks.length} ${f.tracks.length === 1 ? 'track' : 'tracks'}, ${f.waypoints.length} ${f.waypoints.length === 1 ? 'spot' : 'spots'}${f.source === 'drive' ? ' · Drive' : ''}`;
     li.append(a, b);
+    if (f.fit) {
+      // Say what happened to the Garmin activities, so an empty map can be explained.
+      const n = f.fit;
+      const skipped = [
+        n.notOnFoot && `${n.notOnFoot} not on foot`,
+        n.noGps && `${n.noGps} without GPS`,
+      ].filter(Boolean).join(', ');
+      const c = document.createElement('small');
+      c.className = 'file-note';
+      c.textContent = n.activities
+        ? `Garmin activities: ${n.read} of ${n.activities} read${skipped ? ` (${skipped})` : ''}`
+        : 'No Garmin activity (FIT) files inside';
+      li.append(c);
+    }
     return li;
   }));
 }

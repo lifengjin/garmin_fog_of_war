@@ -119,6 +119,9 @@ test('FIT: GPS records, pauses, compressed timestamps, sport filter', async () =
   assert.equal((await parseFile('activity.bin', hike)).tracks.length, 1);
   const zipped = makeZip([{ name: 'a/b/123.fit', data: Buffer.from(hike) }]);
   assert.equal((await parseFile('export.zip', zipped)).tracks.length, 1);
+  const exp = await parseFile('garmin-export-sample.zip', sample('garmin-export-sample.zip'));
+  assert.deepEqual(exp.fit, { activities: 3, read: 2, notActivity: 1, notOnFoot: 1, noGps: 0 });
+  assert.deepEqual((await parseFile('export-sample.zip', sample('export-sample.zip'))).fit.activities, 0);
   const cut = parseFIT(hike.subarray(0, Math.floor(hike.length * 0.4)));
   assert.equal(cut.tracks.length, 1);
   assert.ok(cut.tracks[0].segments[0].length / 2 >= 4);

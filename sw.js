@@ -1,6 +1,6 @@
 // Keeps the app itself available offline (map tiles are not cached here,
 // beyond what the browser caches on its own). Bump VERSION when files change.
-const VERSION = 'v2';
+const VERSION = 'v3';
 const CACHE = `foraging-fog-map-${VERSION}`;
 const SHELL = [
   './', 'index.html', 'css/app.css', 'manifest.webmanifest', 'icons/icon.svg',
@@ -28,7 +28,8 @@ self.addEventListener('fetch', (e) => {
   // Give the network a few seconds (weak signal in the woods), then use the cache.
   const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 4000));
   e.respondWith(
-    Promise.race([fetch(e.request), timeout])
+    // no-cache: always check for a newer copy, so an update shows up on the next visit.
+    Promise.race([fetch(e.request, { cache: 'no-cache' }), timeout])
       .then((res) => {
         if (res.ok) {
           const copy = res.clone();

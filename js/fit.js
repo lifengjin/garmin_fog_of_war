@@ -95,6 +95,8 @@ export function parseFIT(input) {
   const u8 = input instanceof Uint8Array ? input : new Uint8Array(input);
   const dv = new DataView(u8.buffer, u8.byteOffset, u8.byteLength);
   const tracks = [];
+  // What was found, so the app can say why a file cleared no fog.
+  const fit = { activities: 0, read: 0, notActivity: 0, notOnFoot: 0, noGps: 0 };
 
   let start = 0;
   while (start + 12 <= u8.length && isFIT(u8.subarray(start))) {
@@ -103,11 +105,15 @@ export function parseFIT(input) {
     // A truncated file (e.g. a device that lost power) may report a size past
     // the end; read what is there.
     const end = Math.min(u8.length, start + headerSize + dataSize);
-    const track = parseOne(dv, start + headerSize, end);
-    if (track) tracks.push(track);
+    const { track, skip } = parseOne(dv, start + headerSize, end);
+    if (skip === 'notActivity') fit.notActivity++;
+    else {
+      fit.activities++;
+      if (track) { fit.read++; tracks.push(track); } else fit[skip]++;
+    }
     start = start + headerSize + dataSize + 2; // + CRC
   }
-  return { tracks, waypoints: [] };
+  return { tracks, waypoints: [], fit };
 }
 
 function parseOne(dv, pos, end) {
@@ -239,9 +245,9 @@ function parseOne(dv, pos, end) {
   }
 
   closeSegment();
-  if (fileType != null && fileType !== FILE_ACTIVITY) return null;
-  if (sport != null && !ON_FOOT_SPORTS.has(sport)) return null;
-  if (!segments.length) return null;
+  if (fileType != null && fileType !== FILE_ACTIVITY) return { skip: 'notActivity' };
+  if (sport != null && !ON_FOOT_SPORTS.has(sport)) return { skip: 'notOnFoot' };
+  if (!segments.length) return { skip: 'noGps' };
   const label = sportName || ON_FOOT_SPORTS.get(sport ?? 0) || 'Activity';
-  return { name: label, time: firstTime, endTime: lastTime, sport, segments };
+  return { track: { name: label, time: firstTime, endTime: lastTime, sport, segments } };
 }
