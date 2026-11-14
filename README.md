@@ -9,6 +9,8 @@ A map that is covered in fog everywhere except where you've walked. Every GPS tr
 
 *(Screenshots use the made-up sample data in `samples/` and a plain placeholder in place of map tiles.)*
 
+**Using Lifeng's copy of the map as a tester?** Follow [USING.md](USING.md), a step-by-step guide that needs no setup.
+
 - Works in any modern browser, on a phone in the field or on a computer.
 - Reads GPX, KML, KMZ, FIT and ZIP files, including Garmin Connect activities, Garmin Explore exports and Garmin's full account data export.
 - Your data stays private. It lives in your own Google Drive folder (or on your device) and is never put in this repository or sent anywhere else.
