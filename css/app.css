@@ -154,3 +154,5 @@ body.hide-location .leaflet-control-scale { display: none; }
 @media (min-width: 601px) {
   body.panel-open .fab-stack { right: calc(env(safe-area-inset-right, 0px) + 372px); }
 }
+.sight-status { margin: 2px 0 6px 26px; }
+#btn-sight-refresh { margin-left: 26px; }

@@ -11,7 +11,7 @@
     script-src 'self' https://accounts.google.com/gsi/client;
     style-src 'self' 'unsafe-inline' https://accounts.google.com/gsi/style;
     img-src 'self' data: blob: https://tile.openstreetmap.org https://*.tile.opentopomap.org https://basemap.nationalmap.gov;
-    connect-src 'self' https://www.googleapis.com https://accounts.google.com/gsi/;
+    connect-src 'self' https://www.googleapis.com https://accounts.google.com/gsi/ https://api.inaturalist.org;
     frame-src https://accounts.google.com/gsi/;
     worker-src 'self';
     manifest-src 'self';
@@ -106,6 +106,11 @@
       <label class="check"><input id="in-fast" type="checkbox" checked> Leave out driving (faster than 4 mph)</label>
       <label class="check"><input id="in-hide" type="checkbox"> Hide location (for screenshots)</label>
       <label class="check"><input id="in-spots" type="checkbox" checked> Show spots</label>
+      <div class="field">
+        <label class="check"><input id="in-sightings" type="checkbox" checked> Candystick sightings (iNaturalist, WA)</label>
+        <p id="sight-status" class="muted sight-status" role="status">Not loaded yet.</p>
+        <button id="btn-sight-refresh" class="btn" type="button">Update sightings</button>
+      </div>
       <label class="check"><input id="in-lines" type="checkbox"> Show walk lines</label>
       <div id="icon-list-wrap" class="field" hidden>
         <span>Spot icons</span>

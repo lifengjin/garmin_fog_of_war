@@ -4,6 +4,7 @@ import { FogLayer } from './fog.js';
 import * as store from './store.js';
 import * as drive from './drive.js';
 import { GOOGLE_CLIENT_ID, DEFAULT_DRIVE_FOLDER } from './config.js';
+import { SIGHTINGS, fetchSightings, isStale } from './inat.js';
 
 const L = window.L;
 const $ = (id) => document.getElementById(id);
@@ -12,7 +13,7 @@ const $ = (id) => document.getElementById(id);
 
 const SETTINGS_KEY = 'foraging-fog-map:settings';
 const defaults = {
-  width: 30, units: 'imperial', fog: 78, base: 'usgs', baseChosen: false, hide: false, hiddenIcons: [], skipFast: true, spots: true, lines: false, filter: '',
+  width: 30, units: 'imperial', fog: 78, base: 'usgs', baseChosen: false, hide: false, hiddenIcons: [], skipFast: true, sightings: true, spots: true, lines: false, filter: '',
   from: '', to: '', folder: DEFAULT_DRIVE_FOLDER, clientId: '', view: null,
 };
 let settings = { ...defaults };
@@ -66,6 +67,98 @@ function setBase(name) {
 map.createPane('fogPane').style.zIndex = 350; // above tiles, below pins
 const fog = new FogLayer({ widthMetres: settings.width, fogOpacity: settings.fog / 100, showLines: settings.lines }).addTo(map);
 const spotLayer = L.layerGroup();
+
+// ------------------------------------------------------------ iNaturalist sightings
+
+map.createPane('sightPane').style.zIndex = 420; // above the fog, below pins
+const sightRenderer = L.canvas({ pane: 'sightPane', padding: 0.3 });
+const sightLayer = L.layerGroup();
+const SIGHT_KEY = `foraging-fog-map:inat:${SIGHTINGS.key}`;
+const SIGHT_CREDIT = 'Sightings from <a href="https://www.inaturalist.org">iNaturalist</a>';
+let sightData = null;
+let sightLoading = null;
+let sightError = '';
+try { sightData = JSON.parse(localStorage.getItem(SIGHT_KEY) || 'null'); } catch { /* private mode */ }
+
+function fmtAccuracy(m) {
+  if (m == null) return '';
+  if (imperial()) return m * 3.28084 < 1000 ? `±${Math.round(m * 3.28084).toLocaleString()} ft` : `±${(m / MILE).toLocaleString(undefined, { maximumFractionDigits: 1 })} mi`;
+  return m < 1000 ? `±${Math.round(m).toLocaleString()} m` : `±${(m / 1000).toLocaleString(undefined, { maximumFractionDigits: 1 })} km`;
+}
+
+// Built with textContent only; the observer's name comes from iNaturalist.
+function sightPopup(o) {
+  const el = document.createElement('div');
+  el.className = 'spot-popup';
+  const h = document.createElement('h3');
+  h.textContent = SIGHTINGS.name;
+  const sci = document.createElement('i');
+  sci.textContent = ` ${SIGHTINGS.sci}`;
+  h.appendChild(sci);
+  el.appendChild(h);
+  const meta = document.createElement('p');
+  meta.className = 'meta';
+  const date = o.date ? fmtDate(Date.parse(`${o.date}T12:00:00`)) : 'No date';
+  const grade = o.grade === 'research' ? 'Research grade' : o.grade === 'needs_id' ? 'Needs ID' : 'Casual';
+  meta.textContent = [date, fmtAccuracy(o.acc), grade, o.user && `by ${o.user}`].filter(Boolean).join(' · ');
+  el.appendChild(meta);
+  const a = document.createElement('a');
+  a.href = `https://www.inaturalist.org/observations/${Number(o.id)}`;
+  a.target = '_blank';
+  a.rel = 'noopener noreferrer';
+  a.textContent = 'Open on iNaturalist';
+  el.appendChild(a);
+  return el;
+}
+
+function renderSightings() {
+  sightLayer.clearLayers();
+  for (const o of sightData?.items || []) {
+    L.circleMarker([o.lat, o.lon], {
+      renderer: sightRenderer, radius: 6, weight: 2, color: '#fff', fillColor: '#c2185b', fillOpacity: 0.9,
+    }).bindPopup(() => sightPopup(o)).addTo(sightLayer);
+  }
+  const show = settings.sightings && !settings.hide;
+  if (show && !map.hasLayer(sightLayer)) { sightLayer.addTo(map); map.attributionControl.addAttribution(SIGHT_CREDIT); }
+  if (!show && map.hasLayer(sightLayer)) { map.removeLayer(sightLayer); map.attributionControl.removeAttribution(SIGHT_CREDIT); }
+  updateSightStatus();
+}
+
+function updateSightStatus(progress) {
+  const el = $('sight-status');
+  const n = sightData?.items.length || 0;
+  let text;
+  if (progress) text = `Getting sightings from iNaturalist… ${progress}`;
+  else if (sightError && !sightData) text = `Couldn't get sightings from iNaturalist: ${sightError}`;
+  else if (!sightData) text = 'Not loaded yet.';
+  else {
+    text = `${n.toLocaleString()} sightings in ${SIGHTINGS.place}, updated ${fmtDate(sightData.fetchedAt)}.`;
+    if (sightData.obscured) text += ` ${sightData.obscured.toLocaleString()} more aren't shown because iNaturalist hides their exact place.`;
+    if (sightError) text += ` The last update failed: ${sightError}`;
+  }
+  el.textContent = text;
+  document.body.dataset.sightings = String(n);
+  $('btn-sight-refresh').disabled = !!sightLoading;
+}
+
+function loadSightings({ force = false } = {}) {
+  if (sightLoading) return sightLoading;
+  if (!force && (!settings.sightings || !isStale(sightData) || !navigator.onLine)) return Promise.resolve();
+  sightError = '';
+  sightLoading = fetchSightings(SIGHTINGS, {
+    onProgress: (done, total) => updateSightStatus(`${done.toLocaleString()} of ${total.toLocaleString()}`),
+  }).then((data) => {
+    sightData = data;
+    try { localStorage.setItem(SIGHT_KEY, JSON.stringify(data)); } catch { /* storage full or private mode */ }
+  }).catch((err) => {
+    sightError = navigator.onLine ? err.message : 'no connection.';
+  }).finally(() => {
+    sightLoading = null;
+    renderSightings();
+  });
+  updateSightStatus('starting');
+  return sightLoading;
+}
 
 if (settings.view) map.setView(settings.view.center, settings.view.zoom);
 else map.setView([47.6, -122.0], 9);
@@ -533,6 +626,7 @@ $('in-base').addEventListener('change', (e) => {
 function setHide() {
   document.body.classList.toggle('hide-location', settings.hide);
   map.closePopup();
+  renderSightings();
 }
 setHide();
 $('in-hide').checked = settings.hide;
@@ -545,6 +639,10 @@ $('btn-unhide').addEventListener('click', () => {
 
 $('in-fast').checked = settings.skipFast;
 $('in-fast').addEventListener('change', (e) => { settings.skipFast = e.target.checked; save(); render(); });
+
+$('in-sightings').checked = settings.sightings;
+$('in-sightings').addEventListener('change', (e) => { settings.sightings = e.target.checked; save(); renderSightings(); loadSightings(); });
+$('btn-sight-refresh').addEventListener('click', () => loadSightings({ force: true }));
 
 $('in-spots').checked = settings.spots;
 $('in-spots').addEventListener('change', (e) => { settings.spots = e.target.checked; save(); render(); });
@@ -580,6 +678,9 @@ $('in-client').addEventListener('change', (e) => { settings.clientId = e.target.
 $('btn-clear').addEventListener('click', async () => {
   if (!confirm('Remove all tracks and spots stored in this browser? Files in your Drive are not touched.')) return;
   await store.clearAll();
+  try { localStorage.removeItem(SIGHT_KEY); } catch { /* ignore */ }
+  sightData = null;
+  renderSightings();
   delete settings.lastSync;
   save();
   await reload();
@@ -589,6 +690,8 @@ $('btn-clear').addEventListener('click', async () => {
 // ------------------------------------------------------------ start
 
 updateDriveUi();
+renderSightings();
+loadSightings();
 reload({ fit: !settings.view }).catch((err) => {
   console.error(err);
   toast(`Couldn't open saved data: ${err.message}`, { error: true });
@@ -599,4 +702,4 @@ if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.
 }
 
 // Exposed for automated tests only.
-window.__fogMap = { map, fog, reload, get data() { return all; }, yearOf };
+window.__fogMap = { map, fog, reload, loadSightings, sightingsShown: () => map.hasLayer(sightLayer), get data() { return all; }, yearOf };

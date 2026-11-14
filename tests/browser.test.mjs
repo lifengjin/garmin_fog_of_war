@@ -80,9 +80,37 @@ async function launch() {
   return pw.chromium.launch({ executablePath, args: ['--no-sandbox', '--use-gl=swiftshader', '--enable-unsafe-swiftshader'] });
 }
 
-async function newPage(browser, base, viewport = { width: 1200, height: 800 }) {
+// A made-up stand-in for iNaturalist's API: 250 sightings, the last one with
+// its place hidden. Answers 200 at a time after id_above, like the real one.
+const FAKE_SIGHTINGS = Array.from({ length: 250 }, (_, i) => ({
+  id: 1000 + i * 7,
+  observed_on: i % 5 ? `2024-07-${String((i % 28) + 1).padStart(2, '0')}` : null,
+  obscured: i === 249,
+  geojson: { type: 'Point', coordinates: [-121.95 + (i % 25) * 0.004, 47.45 + Math.floor(i / 25) * 0.004] },
+  positional_accuracy: i % 3 ? 12 : 900,
+  quality_grade: i % 2 ? 'research' : 'needs_id',
+  user: { login: `observer${i % 9}` },
+}));
+
+async function fakeInat(page, requests) {
+  await page.route(/api\.inaturalist\.org/, (r) => {
+    const url = new URL(r.request().url());
+    requests?.push(url);
+    const above = Number(url.searchParams.get('id_above') || 0);
+    const per = Number(url.searchParams.get('per_page') || 30);
+    const results = FAKE_SIGHTINGS.filter((o) => o.id > above).slice(0, per);
+    r.fulfill({
+      contentType: 'application/json',
+      headers: { 'Access-Control-Allow-Origin': '*' },
+      body: JSON.stringify({ total_results: FAKE_SIGHTINGS.length, page: 1, per_page: per, results }),
+    });
+  });
+}
+
+async function newPage(browser, base, viewport = { width: 1200, height: 800 }, { inatRequests } = {}) {
   const ctx = await browser.newContext({ viewport, deviceScaleFactor: 1 });
   const page = await ctx.newPage();
+  await fakeInat(page, inatRequests);
   const errors = [];
   page.on('pageerror', (e) => errors.push(e.message));
   page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });
@@ -222,10 +250,10 @@ test('browser: local files, fog, spots, filters, persistence', async (t) => {
   assert.equal(await page.evaluate(() => document.body.dataset.spots), '7');
 
   // Panning and zooming keep the fog aligned with the walk.
-  await page.evaluate(() => window.__fogMap.map.panBy([300, 200], { animate: false }));
+  await page.evaluate(() => { window.__fogMap.map.panBy([300, 200], { animate: false }); });
   await page.waitForTimeout(150);
   assert.equal((await fogInfo(page, [probe])).alphas[0], 0, 'still clear after pan');
-  await page.evaluate((p) => window.__fogMap.map.setView(p, 13), probe);
+  await page.evaluate((p) => { window.__fogMap.map.setView(p, 13); }, probe);
   await page.waitForTimeout(600);
   assert.equal((await fogInfo(page, [probe])).alphas[0], 0, 'still clear after animated zoom out');
 
@@ -409,5 +437,62 @@ test('browser: driving left on the watch is left out', async (t) => {
   assert.ok(all > 3, `the drive counts once the switch is off (${all} mi)`);
   await page.check('#in-fast');
   assert.equal(await miles(), walked);
+  assert.deepEqual(errors, []);
+});
+
+test('browser: candystick sightings from iNaturalist', async (t) => {
+  const server = await serve();
+  const base = `http://127.0.0.1:${server.address().port}/`;
+  const browser = await launch();
+  t.after(async () => { await browser.close(); server.close(); });
+  const requests = [];
+  const { page, errors } = await newPage(browser, base, undefined, { inatRequests: requests });
+  await waitFor(page, () => document.body.dataset.sightings === '249');
+  assert.equal(requests.length, 2, 'two pages of 200');
+  for (const u of requests) {
+    assert.equal(u.searchParams.get('taxon_id'), '62481');
+    assert.equal(u.searchParams.get('place_id'), '46');
+  }
+  assert.equal(requests[1].searchParams.get('id_above'), String(FAKE_SIGHTINGS[199].id));
+  await page.click('#btn-menu');
+  const status = await page.locator('#sight-status').innerText();
+  assert.match(status, /^249 sightings in Washington, updated /);
+  assert.match(status, /1 more aren't shown because iNaturalist hides their exact place/);
+  assert.equal(await page.evaluate(() => window.__fogMap.sightingsShown()), true);
+  assert.match(await page.locator('.leaflet-control-attribution').innerText(), /Sightings from iNaturalist/);
+
+  // A sighting's popup links to iNaturalist and gives no coordinates.
+  await page.click('#btn-menu');
+  const o = FAKE_SIGHTINGS[1];
+  const pt = await page.evaluate(([lat, lon]) => {
+    const { map } = window.__fogMap;
+    map.setView([lat, lon], 16, { animate: false });
+    const p = map.latLngToContainerPoint([lat, lon]);
+    const r = map.getContainer().getBoundingClientRect();
+    return { x: r.left + p.x, y: r.top + p.y };
+  }, [o.geojson.coordinates[1], o.geojson.coordinates[0]]);
+  await page.mouse.click(pt.x, pt.y);
+  const popup = page.locator('.leaflet-popup-content');
+  await popup.waitFor();
+  const text = await popup.innerText();
+  assert.match(text, /Candystick/);
+  assert.match(text, /Research grade/);
+  assert.match(text, /±39 ft/);
+  assert.equal(await popup.locator('a').getAttribute('href'), `https://www.inaturalist.org/observations/${o.id}`);
+
+  // Hide location takes the sightings off the map.
+  await page.click('#btn-menu');
+  await page.check('#in-hide');
+  assert.equal(await page.evaluate(() => window.__fogMap.sightingsShown()), false);
+  await page.uncheck('#in-hide');
+  assert.equal(await page.evaluate(() => window.__fogMap.sightingsShown()), true);
+  await page.uncheck('#in-sightings');
+  assert.equal(await page.evaluate(() => window.__fogMap.sightingsShown()), false);
+  await page.check('#in-sightings');
+
+  // Kept on the device: a reload shows them without asking iNaturalist again.
+  await page.reload();
+  await waitFor(page, () => document.body.dataset.sightings === '249');
+  assert.equal(requests.length, 2);
   assert.deepEqual(errors, []);
 });

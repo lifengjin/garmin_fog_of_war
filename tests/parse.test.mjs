@@ -290,3 +290,30 @@ test('prepare marks driving in a Garmin FIT walk', () => {
   const walked = stats(p.tracks.filter((t) => !t.fast), []).km;
   assert.ok(walked > 0.5 && walked < 0.9, `walked ${walked} km`);
 });
+
+test('fetchSightings reads every page and leaves out hidden places', async () => {
+  const { fetchSightings, toSighting, isStale } = await import('../js/inat.js');
+  const all = Array.from({ length: 205 }, (_, i) => ({
+    id: i + 1, observed_on: '2024-07-01', obscured: i === 3,
+    geojson: i === 4 ? null : { type: 'Point', coordinates: [-121.9, 47.5 + i * 1e-4] },
+    positional_accuracy: 10, quality_grade: 'research', user: { login: 'someone' },
+  }));
+  const urls = [];
+  const fetchImpl = async (url) => {
+    urls.push(new URL(url));
+    const u = urls.at(-1);
+    const above = Number(u.searchParams.get('id_above'));
+    const results = all.filter((o) => o.id > above).slice(0, Number(u.searchParams.get('per_page')));
+    return { ok: true, json: async () => ({ total_results: all.length, results }) };
+  };
+  const data = await fetchSightings(undefined, { fetchImpl, delayMs: 0 });
+  assert.equal(urls.length, 2);
+  assert.equal(urls[1].searchParams.get('id_above'), '200');
+  assert.equal(data.total, 205);
+  assert.equal(data.obscured, 1);
+  assert.equal(data.items.length, 203);
+  assert.deepEqual(toSighting(all[0]), { id: 1, lat: 47.5, lon: -121.9, date: '2024-07-01', acc: 10, grade: 'research', user: 'someone', obscured: false });
+  assert.equal(isStale(data), false);
+  assert.equal(isStale({ fetchedAt: Date.now() - 8 * 864e5 }), true);
+  await assert.rejects(fetchSightings(undefined, { fetchImpl: async () => ({ ok: false, status: 503 }), delayMs: 0 }), /503/);
+});
