@@ -317,3 +317,31 @@ test('fetchSightings reads every page and leaves out hidden places', async () =>
   assert.equal(isStale({ fetchedAt: Date.now() - 8 * 864e5 }), true);
   await assert.rejects(fetchSightings(undefined, { fetchImpl: async () => ({ ok: false, status: 503 }), delayMs: 0 }), /503/);
 });
+
+test('public land: colours by manager and describes a parcel', async () => {
+  const { LAND_CLASSES, dynamicLayers, describeParcel, landClass, lookUpLand, exportUrl } = await import('../js/land.js');
+  const [byName, byType] = dynamicLayers();
+  const named = byName.drawingInfo.renderer.uniqueValueInfos.map((v) => v.value);
+  assert.deepEqual(named, ['NPS', 'USFS', 'BLM', 'SPR', 'SDNR', 'SLB', 'SDOL']);
+  assert.match(byType.definitionExpression, /^Mang_Name IS NULL OR Mang_Name NOT IN \('NPS'/);
+  assert.deepEqual(byType.drawingInfo.renderer.uniqueValueInfos.map((v) => v.value), ['FED', 'STAT', 'LOC', 'DIST', 'TRIB']);
+  assert.equal(new Set(LAND_CLASSES.map((c) => c.key)).size, LAND_CLASSES.length);
+  assert.equal(landClass({ Mang_Name: 'FWS', Mang_Type: 'FED' }).key, 'fed');
+  assert.equal(landClass({ Mang_Name: 'SFW', Mang_Type: 'STAT' }).key, 'state');
+  assert.equal(landClass({ Mang_Name: 'NGO', Mang_Type: 'NGO' }).key, 'other');
+  const d = describeParcel({ Unit_Nm: 'Example State Forest', Mang_Name: 'SDNR', Loc_Mang: 'Example DNR Region', Mang_Type: 'STAT', Des_Tp: 'SRMA', Pub_Access: 'RA' });
+  assert.equal(d.name, 'Example State Forest');
+  assert.equal(d.manager, 'State Department of Natural Resources, Example DNR Region');
+  assert.equal(d.kind, 'State Resource Management Area');
+  assert.equal(d.access, 'Restricted access');
+  assert.equal(d.cls.key, 'dnr');
+  const u = new URL(exportUrl([0, 0, 1000, 1000], 512));
+  assert.equal(u.searchParams.get('size'), '512,512');
+  assert.equal(u.searchParams.get('f'), 'image');
+  let asked;
+  const parcels = await lookUpLand(46.8, -121.7, { fetchImpl: async (url) => { asked = new URL(url); return { ok: true, json: async () => ({ features: [{ attributes: { Unit_Nm: 'X', Mang_Name: 'USFS', Mang_Type: 'FED', Des_Tp: 'NF' } }] }) }; } });
+  assert.equal(asked.searchParams.get('geometry'), '-121.7,46.8');
+  assert.equal(parcels[0].manager, 'Forest Service');
+  assert.equal(parcels[0].kind, 'National Forest');
+  await assert.rejects(lookUpLand(0, 0, { fetchImpl: async () => ({ ok: true, json: async () => ({ error: { message: 'Invalid query' } }) }) }), /Invalid query/);
+});

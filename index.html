@@ -10,8 +10,8 @@
     default-src 'self';
     script-src 'self' https://accounts.google.com/gsi/client;
     style-src 'self' 'unsafe-inline' https://accounts.google.com/gsi/style;
-    img-src 'self' data: blob: https://tile.openstreetmap.org https://*.tile.opentopomap.org https://basemap.nationalmap.gov;
-    connect-src 'self' https://www.googleapis.com https://accounts.google.com/gsi/ https://api.inaturalist.org;
+    img-src 'self' data: blob: https://tile.openstreetmap.org https://*.tile.opentopomap.org https://basemap.nationalmap.gov https://edits.nationalmap.gov;
+    connect-src 'self' https://www.googleapis.com https://accounts.google.com/gsi/ https://api.inaturalist.org https://edits.nationalmap.gov;
     frame-src https://accounts.google.com/gsi/;
     worker-src 'self';
     manifest-src 'self';
@@ -114,6 +114,11 @@
         <label class="check sight-opt"><input id="in-sight-noacc" type="checkbox"> Include sightings with no stated precision</label>
         <p id="sight-status" class="muted sight-status" role="status">Not loaded yet.</p>
         <button id="btn-sight-refresh" class="btn" type="button">Update sightings</button>
+      </div>
+      <div class="field">
+        <label class="check"><input id="in-land" type="checkbox" checked> Public land (USGS PAD-US)</label>
+        <ul id="land-legend" class="icon-list land-legend" aria-label="Public land colours"></ul>
+        <p class="muted sight-status">Tap the map to see who manages the land. This is not a map of where foraging is allowed.</p>
       </div>
       <label class="check"><input id="in-lines" type="checkbox"> Show walk lines</label>
       <div id="icon-list-wrap" class="field" hidden>

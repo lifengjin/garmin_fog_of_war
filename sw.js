@@ -1,10 +1,10 @@
 // Keeps the app itself available offline (map tiles are not cached here,
 // beyond what the browser caches on its own). Bump VERSION when files change.
-const VERSION = 'v11';
+const VERSION = 'v12';
 const CACHE = `foraging-fog-map-${VERSION}`;
 const SHELL = [
   './', 'index.html', 'css/app.css', 'manifest.webmanifest', 'icons/icon.svg',
-  'js/app.js', 'js/config.js', 'js/data.js', 'js/drive.js', 'js/fit.js', 'js/fog.js', 'js/geo.js', 'js/inat.js', 'js/parse.js', 'js/store.js',
+  'js/app.js', 'js/config.js', 'js/data.js', 'js/drive.js', 'js/fit.js', 'js/fog.js', 'js/geo.js', 'js/inat.js', 'js/land.js', 'js/parse.js', 'js/store.js',
   'vendor/leaflet/leaflet.js', 'vendor/leaflet/leaflet.css',
 ];
 

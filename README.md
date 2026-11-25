@@ -24,6 +24,7 @@ This repository holds only the app's code. Your tracks and spots never go in it.
 - **On your device:** the app keeps a copy of what it has read in your browser's storage, so the map opens instantly and works without signal. **Settings → Remove all data from this device** deletes it.
 - **Adding files directly:** files you pick or drop on the map are read in the browser and never uploaded.
 - **iNaturalist:** the candystick overlay asks iNaturalist's public API for sightings of that one species in Washington. The request names only the species and the state, and sends nothing of yours.
+- **USGS:** the public land layer gets its map pictures from USGS's public PAD-US map service, for the part of the map on screen, as any web map does. A tap on the map sends that one point to the same service to ask who manages the land there.
 - The `.gitignore` blocks GPX, KML, KMZ, FIT and ZIP files, so they can't be committed by accident. Only the made-up files in `samples/` are tracked.
 
 The Google client ID in `js/config.js` is not a secret. It only works on the web addresses you allow for it.
@@ -125,6 +126,7 @@ Because the Google project stays in Testing, Google may ask you to approve again
 | Hide location | For screenshots: hides the base map and spot names, spot coordinates and the scale bar, so the picture shows the fog and walks but not where they are. Tap **Location hidden · Show** to turn it off. The shape of a trail could still be matched to a map by someone who tried hard. |
 | Spot icons | Each spot's pin is coloured by its Garmin icon (the GPX `<sym>`, or the KML style). Icons named after a colour, like "Flag, Blue", keep that colour. The list shows how many spots use each icon; untick one to hide those spots. |
 | Candystick sightings | On by default. Shows sightings of candystick (*Allotropa virgata*) in Washington from [iNaturalist](https://www.inaturalist.org) as small magenta dots, each linking to its observation. The app fetches them once, keeps them on the device so they show offline, and fetches them again after a week or when you tap **Update sightings**. Sightings whose place iNaturalist hides (it shows those only within about 20 km) are left out and counted. By default only sightings placed within 500 m (about 0.3 mi) are shown; **Only show sightings** changes that, and sightings with no stated precision can be switched on. Hide location hides them too. |
+| Public land | On by default. Draws public land from the USGS [Protected Areas Database (PAD-US 4.1)](https://www.usgs.gov/programs/gap-analysis-project/science/protected-areas), see-through and coloured by who manages it: National Park Service, National Forest, BLM, other federal, state parks, state natural resources (DNR), other state, county or city, tribal, and private or nonprofit. The menu lists the colours. Tap the map to see the parcel's name, manager and public access. It shows who manages the land, not whether foraging is allowed; rules differ by manager, and national parks are the strictest. Hide location hides it too. |
 | Show spots / walk lines | Toggle the pins, and thin lines along the exact walks. |
 | Only show spots matching | Show only spots whose name or note contains a word, e.g. "chanterelle". |
 
@@ -177,4 +179,5 @@ npm run test:browser             # the whole app in headless Chromium, including
 - This project: MIT (see `LICENSE`).
 - [Leaflet](https://leafletjs.com): BSD 2-Clause (`vendor/leaflet/LICENSE`).
 - Candystick sightings from [iNaturalist](https://www.inaturalist.org); each observation belongs to its observer and carries their chosen license.
+- Public land from the [USGS Protected Areas Database of the United States (PAD-US)](https://www.usgs.gov/programs/gap-analysis-project/science/protected-areas), public domain.
 - Map data © [OpenStreetMap](https://www.openstreetmap.org/copyright) contributors (ODbL). Topographic style © [OpenTopoMap](https://opentopomap.org) (CC-BY-SA). US topographic tiles courtesy of the [U.S. Geological Survey](https://www.usgs.gov/) (The National Map).

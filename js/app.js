@@ -5,6 +5,7 @@ import * as store from './store.js';
 import * as drive from './drive.js';
 import { GOOGLE_CLIENT_ID, DEFAULT_DRIVE_FOLDER } from './config.js';
 import { SIGHTINGS, fetchSightings, isStale } from './inat.js';
+import { LAND_CLASSES, LAND_CREDIT, exportUrl, lookUpLand } from './land.js';
 
 const L = window.L;
 const $ = (id) => document.getElementById(id);
@@ -13,7 +14,7 @@ const $ = (id) => document.getElementById(id);
 
 const SETTINGS_KEY = 'foraging-fog-map:settings';
 const defaults = {
-  width: 30, units: 'imperial', fog: 78, base: 'usgs', baseChosen: false, hide: false, hiddenIcons: [], skipFast: true, sightings: true, sightMaxAcc: 500, sightNoAcc: false, spots: true, lines: false, filter: '',
+  width: 30, units: 'imperial', fog: 78, base: 'usgs', baseChosen: false, hide: false, hiddenIcons: [], skipFast: true, sightings: true, sightMaxAcc: 500, sightNoAcc: false, land: true, spots: true, lines: false, filter: '',
   from: '', to: '', folder: DEFAULT_DRIVE_FOLDER, clientId: '', view: null,
 };
 let settings = { ...defaults };
@@ -134,7 +135,7 @@ function renderSightings() {
     if (!sightVisible(o)) continue;
     sightShown++;
     L.circleMarker([o.lat, o.lon], {
-      renderer: sightRenderer, radius: 6, weight: 2, color: '#fff', fillColor: '#c2185b', fillOpacity: 0.9,
+      renderer: sightRenderer, bubblingMouseEvents: false, radius: 6, weight: 2, color: '#fff', fillColor: '#c2185b', fillOpacity: 0.9,
     }).bindPopup(() => sightPopup(o)).addTo(sightLayer);
   }
   const show = settings.sightings && !settings.hide;
@@ -179,6 +180,88 @@ function loadSightings({ force = false } = {}) {
   updateSightStatus('starting');
   return sightLoading;
 }
+
+// ------------------------------------------------------------ public land (USGS PAD-US)
+
+// Pictures of public land drawn by USGS's map service, see-through and
+// coloured by who manages the land. Above the fog, so land you haven't
+// walked still shows; below sightings and pins.
+map.createPane('landPane').style.zIndex = 380;
+map.getPane('landPane').style.pointerEvents = 'none';
+const LandLayer = L.TileLayer.extend({
+  getTileUrl(coords) {
+    const size = this.getTileSize().x;
+    const nw = L.point(coords.x * size, coords.y * size);
+    const a = L.CRS.EPSG3857.project(this._map.unproject(nw, coords.z));
+    const b = L.CRS.EPSG3857.project(this._map.unproject(nw.add([size, size]), coords.z));
+    return exportUrl([a.x, b.y, b.x, a.y], size);
+  },
+});
+const landLayer = new LandLayer('', { pane: 'landPane', tileSize: 512, maxZoom: 19, attribution: LAND_CREDIT, className: 'land-tiles' });
+const rgb = ([r, g, b]) => `rgb(${r}, ${g}, ${b})`;
+
+function fillLandLegend() {
+  $('land-legend').replaceChildren(...LAND_CLASSES.map((c) => {
+    const li = document.createElement('li');
+    const sw = document.createElement('span');
+    sw.className = 'swatch square';
+    sw.style.background = rgb(c.colour);
+    const name = document.createElement('span');
+    name.textContent = c.label;
+    li.append(sw, name);
+    return li;
+  }));
+}
+
+function renderLand() {
+  const show = settings.land && !settings.hide;
+  if (show && !map.hasLayer(landLayer)) landLayer.addTo(map);
+  if (!show && map.hasLayer(landLayer)) map.removeLayer(landLayer);
+  document.body.dataset.land = show ? 'on' : 'off';
+}
+
+// Built with textContent only; names come from USGS.
+function landPopup(parcels, error) {
+  const el = document.createElement('div');
+  el.className = 'spot-popup land-popup';
+  const add = (tag, text, cls) => {
+    const n = document.createElement(tag);
+    n.textContent = text;
+    if (cls) n.className = cls;
+    el.appendChild(n);
+    return n;
+  };
+  if (error) { add('p', `Couldn't look up this land: ${error}`); return el; }
+  if (!parcels.length) { add('p', 'No public land is listed here.'); return el; }
+  for (const p of parcels.slice(0, 3)) {
+    const h = add('h3', '');
+    const sw = document.createElement('span');
+    sw.className = 'swatch square';
+    sw.style.background = rgb(p.cls.colour);
+    h.append(sw, document.createTextNode(` ${p.name}`));
+    add('p', p.manager);
+    const meta = [p.kind, p.access].filter(Boolean).join(' · ');
+    if (meta) add('p', meta, 'meta');
+  }
+  add('p', "Shows who manages the land, not whether foraging is allowed. Check that manager's rules.", 'meta');
+  return el;
+}
+
+let lastPopupClose = 0;
+map.on('popupclose', () => { lastPopupClose = Date.now(); });
+map.on('click', async (e) => {
+  // A tap that only closed a popup doesn't open another.
+  if (!map.hasLayer(landLayer) || Date.now() - lastPopupClose < 300) return;
+  const popup = L.popup({ maxWidth: 260 }).setLatLng(e.latlng).setContent('Looking up who manages this land…').openOn(map);
+  let parcels = [];
+  let error = '';
+  try {
+    parcels = await lookUpLand(e.latlng.lat, e.latlng.lng);
+  } catch (err) {
+    error = navigator.onLine ? err.message : 'no connection.';
+  }
+  if (map.hasLayer(popup)) popup.setContent(landPopup(parcels, error));
+});
 
 if (settings.view) map.setView(settings.view.center, settings.view.zoom);
 else map.setView([47.6, -122.0], 9);
@@ -648,6 +731,7 @@ function setHide() {
   document.body.classList.toggle('hide-location', settings.hide);
   map.closePopup();
   renderSightings();
+  renderLand();
 }
 setHide();
 $('in-hide').checked = settings.hide;
@@ -668,6 +752,10 @@ fillSightAcc();
 $('in-sight-acc').addEventListener('change', (e) => { settings.sightMaxAcc = Number(e.target.value) || 0; save(); renderSightings(); });
 $('in-sight-noacc').checked = settings.sightNoAcc;
 $('in-sight-noacc').addEventListener('change', (e) => { settings.sightNoAcc = e.target.checked; save(); renderSightings(); });
+
+$('in-land').checked = settings.land;
+$('in-land').addEventListener('change', (e) => { settings.land = e.target.checked; save(); renderLand(); map.closePopup(); });
+fillLandLegend();
 
 $('in-spots').checked = settings.spots;
 $('in-spots').addEventListener('change', (e) => { settings.spots = e.target.checked; save(); render(); });
@@ -727,4 +815,4 @@ if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.
 }
 
 // Exposed for automated tests only.
-window.__fogMap = { map, fog, reload, loadSightings, sightingsShown: () => map.hasLayer(sightLayer), get data() { return all; }, yearOf };
+window.__fogMap = { map, fog, reload, loadSightings, sightingsShown: () => map.hasLayer(sightLayer), landShown: () => map.hasLayer(landLayer), get data() { return all; }, yearOf };

@@ -107,10 +107,27 @@ async function fakeInat(page, requests) {
   });
 }
 
-async function newPage(browser, base, viewport = { width: 1200, height: 800 }, { inatRequests } = {}) {
+// A made-up stand-in for USGS's PAD-US map service: every picture is a blank
+// tile, and every point is inside one made-up national park.
+const FAKE_PARCEL = { Unit_Nm: 'Example Ridge National Park', Loc_Nm: 'EXRI', Mang_Name: 'NPS', Loc_Mang: 'NPS', Mang_Type: 'FED', Des_Tp: 'NP', Loc_Ds: 'National Park', Pub_Access: 'OA' };
+async function fakeLand(page, requests) {
+  await page.route(/edits\.nationalmap\.gov/, (r) => {
+    const url = new URL(r.request().url());
+    requests?.push(url);
+    if (url.pathname.endsWith('/export')) return r.fulfill({ body: TILE, contentType: 'image/png' });
+    return r.fulfill({
+      contentType: 'application/json',
+      headers: { 'Access-Control-Allow-Origin': '*' },
+      body: JSON.stringify({ features: [{ attributes: FAKE_PARCEL }] }),
+    });
+  });
+}
+
+async function newPage(browser, base, viewport = { width: 1200, height: 800 }, { inatRequests, landRequests } = {}) {
   const ctx = await browser.newContext({ viewport, deviceScaleFactor: 1 });
   const page = await ctx.newPage();
   await fakeInat(page, inatRequests);
+  await fakeLand(page, landRequests);
   const errors = [];
   page.on('pageerror', (e) => errors.push(e.message));
   page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });
@@ -509,5 +526,54 @@ test('browser: candystick sightings from iNaturalist', async (t) => {
   await waitFor(page, () => document.body.dataset.sightingsAll === '249');
   assert.equal(await page.evaluate(() => document.body.dataset.sightings), String(precise));
   assert.equal(requests.length, 2);
+  assert.deepEqual(errors, []);
+});
+
+test('browser: public land layer from USGS PAD-US', async (t) => {
+  const server = await serve();
+  const base = `http://127.0.0.1:${server.address().port}/`;
+  const browser = await launch();
+  t.after(async () => { await browser.close(); server.close(); });
+  const requests = [];
+  const { page, errors } = await newPage(browser, base, undefined, { landRequests: requests });
+  assert.equal(await page.evaluate(() => window.__fogMap.landShown()), true, 'on by default');
+  await waitFor(page, () => document.querySelectorAll('.land-tiles img').length > 0);
+  const tile = requests.find((u) => u.pathname.endsWith('/MapServer/export'));
+  assert.ok(tile, 'map pictures come from the PAD-US service');
+  assert.equal(tile.searchParams.get('transparent'), 'true');
+  const layers = JSON.parse(tile.searchParams.get('dynamicLayers'));
+  assert.equal(layers.length, 2);
+  assert.match(layers[0].definitionExpression, /'NPS'/);
+  assert.match(await page.locator('.leaflet-control-attribution').innerText(), /USGS PAD-US/);
+
+  await page.click('#btn-menu');
+  assert.equal(await page.locator('#land-legend li').count(), 10);
+  assert.match(await page.locator('#land-legend').innerText(), /National Park Service/);
+  await page.click('#btn-menu');
+
+  // A tap asks who manages the land there.
+  const box = await page.locator('#map').boundingBox();
+  await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+  const popup = page.locator('.leaflet-popup-content');
+  await popup.getByText('Example Ridge National Park').waitFor();
+  const text = await popup.innerText();
+  assert.match(text, /National Park Service/);
+  assert.match(text, /Open to the public/);
+  assert.match(text, /not whether foraging is allowed/);
+  const q = requests.find((u) => u.pathname.endsWith('/0/query'));
+  assert.equal(q.searchParams.get('inSR'), '4326');
+  assert.equal(q.searchParams.get('returnGeometry'), 'false');
+
+  // Hide location takes it off; so does its switch.
+  await page.click('#btn-menu');
+  await page.check('#in-hide');
+  assert.equal(await page.evaluate(() => window.__fogMap.landShown()), false);
+  await page.uncheck('#in-hide');
+  assert.equal(await page.evaluate(() => window.__fogMap.landShown()), true);
+  await page.uncheck('#in-land');
+  assert.equal(await page.evaluate(() => window.__fogMap.landShown()), false);
+  await page.reload();
+  await waitFor(page, () => !!window.__fogMap);
+  assert.equal(await page.evaluate(() => window.__fogMap.landShown()), false, 'the switch is remembered');
   assert.deepEqual(errors, []);
 });
